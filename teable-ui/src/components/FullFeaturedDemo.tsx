@@ -655,11 +655,26 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     }
   }, [props.tableId])
 
-  const handleEditColumn = useCallback((columnIndex: number, updatedColumn: IGridColumn) => {
+  const handleEditColumn = useCallback(async (columnIndex: number, updatedColumn: IGridColumn) => {
+    // 1) 本地更新，提升响应
     setColumns((cols) => cols.map((col, index) => 
       index === columnIndex ? { ...col, ...updatedColumn } : col
     ))
-  }, [])
+
+    // 2) 同步到后端
+    try {
+      const fieldId = columns[columnIndex]?.id
+      if (!fieldId) return
+      const updates: any = {}
+      if (updatedColumn.name != null) updates.name = updatedColumn.name
+      if ((updatedColumn as any).type != null) updates.type = (updatedColumn as any).type
+      if (updatedColumn.description != null) updates.description = updatedColumn.description
+      await ensureLogin()
+      await teable.updateField(fieldId, updates)
+    } catch (e) {
+      console.error('更新字段失败', e)
+    }
+  }, [columns])
 
   const handleDuplicateColumn = useCallback((columnIndex: number) => {
     const columnToDuplicate = columns[columnIndex]
@@ -716,16 +731,33 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     })
   }, [saveHistory])
 
-  // 删除选中的行/列
-  const handleDelete = useCallback((selection: CombinedSelection) => {
+  // 删除选中的行/列（行删除会同步数据库）
+  const handleDelete = useCallback(async (selection: CombinedSelection) => {
     saveHistory()
-    
+
     if (selection.type === 'rows') {
       const rowsToDelete = new Set(selection.ranges.flatMap(range => {
         const [start, end] = range as [number, number]
         return Array.from({ length: end - start + 1 }, (_, i) => start + i)
       }))
-      setDeletedRows(prev => new Set<number>([...prev, ...rowsToDelete]))
+
+      // 本地删除
+      setData(prev => prev.filter((_, idx) => !rowsToDelete.has(idx)))
+
+      // 后端删除
+      try {
+        await ensureLogin()
+        const tableId = getEffectiveTableId(props.tableId || 'demo')
+        for (const idx of rowsToDelete) {
+          const rec = data[idx]
+          const recordId = (rec as any)?.id
+          if (recordId) {
+            await teable.deleteRecord({ table_id: tableId, record_id: String(recordId) })
+          }
+        }
+      } catch (e) {
+        console.error('删除记录失败', e)
+      }
     } else if (selection.type === 'columns') {
       const colsToDelete = new Set(selection.ranges.flatMap(range => {
         const [start, end] = range as [number, number]
@@ -733,7 +765,7 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
       }))
       setColumns(prev => prev.filter((_, i) => !colsToDelete.has(i)))
     }
-  }, [saveHistory])
+  }, [saveHistory, data, props.tableId])
 
   // 复制
   const handleCopy = useCallback((selection: CombinedSelection, e: React.ClipboardEvent) => {

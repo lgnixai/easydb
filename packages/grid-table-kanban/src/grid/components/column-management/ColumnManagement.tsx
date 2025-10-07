@@ -10,7 +10,7 @@ import { FieldPropertyEditor, type IFieldPropertyEditorRef } from '../field-prop
 export interface IColumnManagementRef {
   showFieldTypeSelector: (position: { x: number; y: number }) => void;
   showColumnContextMenu: (position: { x: number; y: number }, columnIndex: number) => void;
-  showFieldPropertyEditor: (column: IGridColumn, columnIndex: number) => void;
+  showFieldPropertyEditor: (column: IGridColumn, columnIndex: number, position?: { x: number; y: number; width?: number }) => void;
   hideAll: () => void;
 }
 
@@ -55,8 +55,8 @@ const ColumnManagementBase: ForwardRefRenderFunction<
     showColumnContextMenu: (position: { x: number; y: number }, columnIndex: number) => {
       columnContextMenuRef.current?.show(position, columnIndex);
     },
-    showFieldPropertyEditor: (column: IGridColumn, columnIndex: number) => {
-      fieldPropertyEditorRef.current?.show(column, columnIndex);
+    showFieldPropertyEditor: (column: IGridColumn, columnIndex: number, position?: { x: number; y: number; width?: number }) => {
+      fieldPropertyEditorRef.current?.show(column, columnIndex, position);
     },
     hideAll: () => {
       fieldTypeSelectorRef.current?.hide();
@@ -137,6 +137,19 @@ const ColumnManagementBase: ForwardRefRenderFunction<
 
   // 字段属性编辑器事件处理
   const handleFieldPropertySave = (columnIndex: number, updatedColumn: IGridColumn) => {
+    // 新建字段：当传入的索引等于当前列数，视为插入到末尾
+    if (columnIndex >= columns.length) {
+      const type = (updatedColumn as any).type;
+      const fieldType = {
+        type,
+        name: updatedColumn.name || '新字段',
+        description: updatedColumn.description || '',
+        icon: (updatedColumn as any).icon || 'A',
+      } as unknown as IFieldType;
+      onAddColumn?.(fieldType);
+      return;
+    }
+    // 编辑已有字段
     onEditColumn?.(columnIndex, updatedColumn);
   };
 

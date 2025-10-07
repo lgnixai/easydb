@@ -142,6 +142,19 @@ class SimpleTeableClient {
     }
   }
 
+  async updateField(field_id: string, updates: Partial<{ name: string; type: string; description: string; options: any }>): Promise<{ data: Field }> {
+    try {
+      const response = await axios.put(
+        `${this.baseURL}/api/fields/${field_id}`,
+        updates,
+        { headers: this.getHeaders() }
+      );
+      return { data: response.data.data };
+    } catch (error: any) {
+      throw new Error(`更新字段失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
   // ========== Records ==========
   async listRecords(params: { table_id: string; limit?: number; offset?: number }): Promise<PaginatedResponse<RecordItem>> {
     try {

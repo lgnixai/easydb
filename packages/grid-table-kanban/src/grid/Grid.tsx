@@ -4,6 +4,7 @@ import type { CSSProperties, ForwardRefRenderFunction } from 'react';
 import { useState, useRef, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useRafState } from 'react-use';
 import { LoadingIndicator, ColumnManagement, type IColumnManagementRef } from './components';
+import { RowContextMenu, type IRowContextMenuRef } from './components/row-context-menu/RowContextMenu';
 import type { IGridTheme } from './configs';
 import { gridTheme, GRID_DEFAULT, DEFAULT_SCROLL_STATE, DEFAULT_MOUSE_STATE } from './configs';
 import { useResizeObserver } from './hooks';
@@ -319,6 +320,7 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
   const containerRef = useRef<HTMLDivElement | null>(null);
   const interactionLayerRef = useRef<IInteractionLayerRef | null>(null);
   const columnManagementRef = useRef<IColumnManagementRef | null>(null);
+  const rowContextMenuRef = useRef<IRowContextMenuRef | null>(null);
   const { ref, width, height } = useResizeObserver<HTMLDivElement>();
 
   const [activeColumnIndex, activeRowIndex] = activeCell ?? [];
@@ -556,14 +558,68 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
     scrollerRef.current?.scrollBy(deltaX, deltaY);
   }, []);
 
-  // 处理列头右键菜单
-  const handleColumnHeaderMenuClick = useCallback((colIndex: number, bounds: IRectangle) => {
-    // 显示列右键菜单
-    columnManagementRef.current?.showColumnContextMenu(
-      { x: bounds.x, y: bounds.y + bounds.height },
-      colIndex
+  // 点击右侧“+”添加列时，直接弹出字段属性编辑弹窗（居中）
+  const handleAppendColumnClick = useCallback(() => {
+    // 以“新增字段”的方式打开属性编辑器，传入一个默认列定义
+    const defaultColumn: IGridColumn = {
+      id: `col-${Date.now()}`,
+      name: '新字段',
+      width: 160,
+      description: '',
+      icon: 'A',
+    };
+
+    // 计算浮层位置：
+    // - 顶部与第一行顶部对齐（columnHeaderHeight 下方）
+    // - 右侧与最后一列右边缘对齐（容器内坐标转换为页面坐标由上层容器处理，这里使用相对容器的 left/top）
+    // 计算面板在页面中的定位（与 append 列按钮一致）
+    const panelWidth = 360;
+    const containerEl = containerRef.current;
+    const rect = containerEl?.getBoundingClientRect();
+    const pageLeft = (rect?.left ?? 0) + window.scrollX;
+    const pageTop = (rect?.top ?? 0) + window.scrollY;
+    const { totalWidth } = coordInstance;
+    const { scrollLeft } = scrollState;
+
+    // append 区域（最后一列右缘）的可视 x 为 totalWidth - scrollLeft
+    const appendRightX = totalWidth - scrollLeft;
+    // 弹窗左边缘与最后一列最右边对齐（紧贴在其右侧显示）
+    const x = pageLeft + appendRightX + 1;
+    const y = pageTop + columnHeaderHeight; // 与第一行顶部对齐（表头下沿）
+
+    columnManagementRef.current?.showFieldPropertyEditor(
+      defaultColumn,
+      columns.length,
+      { x: Math.max(x, pageLeft), y, width: panelWidth }
     );
-  }, []);
+  }, [columns.length, coordInstance.containerWidth, columnHeaderHeight]);
+
+  // 处理列头右键菜单（位置：顶部与第一行对齐，左边与列左边对齐）
+  const handleColumnHeaderMenuClick = useCallback((colIndex: number, bounds: IRectangle) => {
+    const containerEl = containerRef.current;
+    const rect = containerEl?.getBoundingClientRect();
+    const pageLeft = (rect?.left ?? 0) + window.scrollX;
+    const pageTop = (rect?.top ?? 0) + window.scrollY;
+
+    // bounds.x 为相对容器的可视左偏移
+    const x = pageLeft + bounds.x; // 列左边
+    const y = pageTop + columnHeaderHeight; // 第一行顶部（表头下沿）
+
+    columnManagementRef.current?.showColumnContextMenu({ x, y }, colIndex);
+  }, [columnHeaderHeight]);
+
+  // 对齐编辑弹窗定位：顶部与第一行顶部对齐、左侧与该列右边对齐
+  const openEditFieldAtColumn = useCallback((colIndex: number) => {
+    const containerEl = containerRef.current;
+    const rect = containerEl?.getBoundingClientRect();
+    const pageLeft = (rect?.left ?? 0) + window.scrollX;
+    const pageTop = (rect?.top ?? 0) + window.scrollY;
+    const x = pageLeft + coordInstance.getColumnRelativeOffset(colIndex + 1, scrollState.scrollLeft);
+    const y = pageTop + columnHeaderHeight; // 表头下沿
+    const column = columns[colIndex];
+    if (!column) return;
+    columnManagementRef.current?.showFieldPropertyEditor(column, colIndex, { x, y, width: 520 });
+  }, [columns, coordInstance, scrollState.scrollLeft, columnHeaderHeight]);
 
   const scrollToItem = useCallback(
     (position: [columnIndex: number, rowIndex: number]) => {
@@ -612,6 +668,17 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
     containerRef.current?.focus();
   };
 
+  // 右键行时弹出菜单（先实现删除）
+  const handleContextMenu = useCallback((selection: CombinedSelection, position: IPosition) => {
+    const [colIndex, rowIndex] = selection.ranges[0] ?? [];
+    if (rowIndex == null || rowIndex < 0) return;
+    const containerEl = containerRef.current;
+    const rect = containerEl?.getBoundingClientRect();
+    const pageLeft = (rect?.left ?? 0) + window.scrollX;
+    const pageTop = (rect?.top ?? 0) + window.scrollY;
+    rowContextMenuRef.current?.show({ x: pageLeft + position.x, y: pageTop + position.y }, rowIndex);
+  }, []);
+
   const { rowInitSize } = coordInstance;
 
   return (
@@ -654,8 +721,8 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
             onRowAppend={onRowAppend}
             onRowExpand={onRowExpand}
             onCellEdited={onCellEdited}
-            onContextMenu={onContextMenu}
-            onColumnAppend={onColumnAppend}
+            onContextMenu={handleContextMenu}
+            onColumnAppend={handleAppendColumnClick}
             onColumnHeaderClick={onColumnHeaderClick}
             onColumnStatisticClick={onColumnStatisticClick}
             onCollapsedGroupChanged={onCollapsedGroupChanged}
@@ -707,8 +774,8 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
             onRowOrdered={onRowOrdered}
             onCellEdited={onCellEdited}
             onCellDblClick={onCellDblClick}
-            onContextMenu={onContextMenu}
-            onColumnAppend={onColumnAppend}
+            onContextMenu={handleContextMenu}
+            onColumnAppend={handleAppendColumnClick}
             onColumnResize={onColumnResize}
             onColumnOrdered={onColumnOrdered}
             onColumnHeaderClick={onColumnHeaderClick}
@@ -760,6 +827,10 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
         onEditColumn={onEditColumn}
         onDuplicateColumn={onDuplicateColumn}
         onDeleteColumn={onDeleteColumn}
+      />
+      <RowContextMenu
+        ref={rowContextMenuRef}
+        onDeleteRow={(rowIndex) => onDelete?.({ type: SelectableType.Row } as any)}
       />
     </div>
   );
