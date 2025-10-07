@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>编辑器位置测试</title>
+  <style>
+    body { padding: 20px; font-family: Arial; }
+    .info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    pre { background: #fff; padding: 10px; border: 1px solid #ddd; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Grid 编辑器位置测试</h1>
+  <div class="info">
+    <p>请在主页面 (http://localhost:5173) 双击任意单元格，然后点击下面的按钮获取调试信息</p>
+    <button onclick="checkEditorPosition()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+      检查编辑器位置
+    </button>
+  </div>
+  
+  <div id="output"></div>
+  
+  <script>
+    function checkEditorPosition() {
+      // 打开主窗口
+      const mainWindow = window.open('http://localhost:5173', 'main');
+      
+      setTimeout(() => {
+        try {
+          const doc = mainWindow.document;
+          const canvas = doc.querySelector('canvas');
+          
+          if (canvas) {
+            // 双击第一行第一列
+            const rect = canvas.getBoundingClientRect();
+            const x = rect.x + 100;
+            const y = rect.y + 80;
+            
+            const dblClick = new MouseEvent('dblclick', {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y
+            });
+            canvas.dispatchEvent(dblClick);
+            
+            setTimeout(() => {
+              collectDebugInfo(doc);
+            }, 500);
+          }
+        } catch(e) {
+          document.getElementById('output').innerHTML = 
+            '<div class="info" style="background: #ffebee;">错误: ' + e.message + 
+            '<br>请直接在主页面的控制台中运行调试代码</div>';
+        }
+      }, 1000);
+    }
+    
+    function collectDebugInfo(doc) {
+      const editor = doc.querySelector('[id^="editor-container"]');
+      const editorDiv = editor?.querySelector('.absolute');
+      const gridContainer = doc.querySelector('[data-t-grid-container]');
+      const gridParent = doc.querySelector('[data-t-grid-container]')?.parentElement;
+      
+      if (!editorDiv || !gridContainer) {
+        document.getElementById('output').innerHTML = 
+          '<div class="info" style="background: #fff3e0;">未找到编辑器。请先双击单元格。</div>';
+        return;
+      }
+      
+      const editorRect = editorDiv.getBoundingClientRect();
+      const gridRect = gridContainer.getBoundingClientRect();
+      const parentRect = gridParent?.getBoundingClientRect();
+      const editorStyle = doc.defaultView.getComputedStyle(editorDiv);
+      const editorContainerStyle = doc.defaultView.getComputedStyle(editor);
+      const gridStyle = doc.defaultView.getComputedStyle(gridContainer);
+      const parentStyle = gridParent ? doc.defaultView.getComputedStyle(gridParent) : null;
+      
+      const result = {
+        'Grid父容器': parentRect ? {
+          position: parentStyle?.position,
+          rect: { x: parentRect.x, y: parentRect.y, width: parentRect.width, height: parentRect.height }
+        } : null,
+        'Grid容器': {
+          position: gridStyle.position,
+          rect: { x: gridRect.x, y: gridRect.y, width: gridRect.width, height: gridRect.height }
+        },
+        '编辑器容器': {
+          position: editorContainerStyle.position,
+          top: editorContainerStyle.top,
+          left: editorContainerStyle.left
+        },
+        '编辑器Div': {
+          position: editorStyle.position,
+          top: editorStyle.top,
+          left: editorStyle.left,
+          zIndex: editorStyle.zIndex,
+          rect: { x: editorRect.x, y: editorRect.y, width: editorRect.width, height: editorRect.height }
+        },
+        '编辑器inline style': editorDiv.style.cssText,
+        '相对Grid的位置': {
+          x: editorRect.x - gridRect.x,
+          y: editorRect.y - gridRect.y
+        },
+        '期望位置': {
+          说明: '第一行第一列应该在',
+          x: '约48px（行头宽度）',
+          y: '约40px（列头高度）'
+        }
+      };
+      
+      document.getElementById('output').innerHTML = 
+        '<h2>调试信息</h2><pre>' + JSON.stringify(result, null, 2) + '</pre>';
+    }
+  </script>
+</body>
+</html>
+

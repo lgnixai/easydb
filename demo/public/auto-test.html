@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0;url=/#auto-test">
+  <title>自动测试</title>
+</head>
+<body>
+  <p>正在跳转到主页并执行自动测试...</p>
+  <script>
+    // 等待页面加载后自动执行测试
+    window.addEventListener('load', () => {
+      if (window.location.hash === '#auto-test') {
+        setTimeout(() => {
+          // 双击第一行第一列
+          const canvas = document.querySelector('canvas');
+          if (canvas) {
+            const rect = canvas.getBoundingClientRect();
+            const x = rect.x + 100;
+            const y = rect.y + 80;
+            
+            const dblClick = new MouseEvent('dblclick', {
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y
+            });
+            canvas.dispatchEvent(dblClick);
+            
+            // 等待编辑器出现后收集信息
+            setTimeout(() => {
+              const editor = document.querySelector('[id^="editor-container"]');
+              const editorDiv = editor?.querySelector('.absolute');
+              const gridContainer = document.querySelector('[data-t-grid-container]');
+              
+              if (editorDiv && gridContainer) {
+                const editorRect = editorDiv.getBoundingClientRect();
+                const gridRect = gridContainer.getBoundingClientRect();
+                const editorStyle = window.getComputedStyle(editorDiv);
+                const editorContainerStyle = window.getComputedStyle(editor);
+                
+                // 创建结果显示div
+                const resultDiv = document.createElement('div');
+                resultDiv.style.cssText = `
+                  position: fixed;
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  background: white;
+                  padding: 20px;
+                  border: 2px solid #000;
+                  max-width: 600px;
+                  max-height: 80vh;
+                  overflow: auto;
+                  z-index: 9999;
+                  font-family: monospace;
+                  font-size: 12px;
+                `;
+                
+                resultDiv.innerHTML = `
+                  <h2 style="margin-top: 0;">编辑器位置测试结果</h2>
+                  <button onclick="this.parentElement.remove()" style="float: right;">关闭</button>
+                  <div style="clear: both;"></div>
+                  
+                  <h3>Grid容器</h3>
+                  <pre>位置: x=${gridRect.x}, y=${gridRect.y}
+尺寸: ${gridRect.width} x ${gridRect.height}</pre>
+                  
+                  <h3>编辑器容器 computed style</h3>
+                  <pre>position: ${editorContainerStyle.position}
+top: ${editorContainerStyle.top}
+left: ${editorContainerStyle.left}</pre>
+                  
+                  <h3>编辑器Div</h3>
+                  <pre>位置: x=${editorRect.x}, y=${editorRect.y}
+尺寸: ${editorRect.width} x ${editorRect.height}
+                  
+computed style:
+  position: ${editorStyle.position}
+  top: ${editorStyle.top}
+  left: ${editorStyle.left}
+  zIndex: ${editorStyle.zIndex}
+                  
+inline style:
+  ${editorDiv.style.cssText || '(none)'}</pre>
+                  
+                  <h3>相对位置</h3>
+                  <pre>相对Grid: x=${editorRect.x - gridRect.x}, y=${editorRect.y - gridRect.y}
+                  
+期望位置: x≈48, y≈40（第一行第一列）
+                  
+<strong style="color: ${
+  Math.abs(editorRect.x - gridRect.x - 48) < 10 && 
+  Math.abs(editorRect.y - gridRect.y - 40) < 10 
+    ? 'green">✅ 位置正确！'
+    : 'red">❌ 位置不正确！'
+}</strong></pre>
+                  
+                  <h3>诊断</h3>
+                  <pre>${
+                    editorStyle.position !== 'absolute' 
+                      ? '⚠️ position不是absolute，Tailwind类未生效'
+                      : '✅ position正确'
+                  }
+${
+  editorStyle.zIndex === 'auto' || editorStyle.zIndex === '0'
+    ? '⚠️ zIndex未设置，Tailwind z-10类未生效'
+    : '✅ zIndex正确: ' + editorStyle.zIndex
+}</pre>
+                `;
+                
+                document.body.appendChild(resultDiv);
+              } else {
+                alert('未找到编辑器元素');
+              }
+            }, 500);
+          } else {
+            console.log('未找到canvas');
+          }
+        }, 1500);
+      }
+    });
+  </script>
+</body>
+</html>
+

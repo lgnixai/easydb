@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Editor Position Test</title>
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const canvas = document.querySelector('canvas');
+        if (canvas) {
+          // 双击第一行第一列
+          const rect = canvas.getBoundingClientRect();
+          const x = rect.x + 100;
+          const y = rect.y + 80;
+          
+          const dblClick = new MouseEvent('dblclick', {
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y
+          });
+          canvas.dispatchEvent(dblClick);
+          
+          setTimeout(() => {
+            const editor = document.querySelector('[id^="editor-container"]');
+            if (editor) {
+              const editorDiv = editor.querySelector('.absolute');
+              const gridContainer = document.querySelector('[data-t-grid-container]');
+              
+              if (editorDiv && gridContainer) {
+                const editorRect = editorDiv.getBoundingClientRect();
+                const gridRect = gridContainer.getBoundingClientRect();
+                
+                console.log('=== 编辑器位置调试 ===');
+                console.log('Grid容器:', {
+                  x: gridRect.x,
+                  y: gridRect.y,
+                  width: gridRect.width,
+                  height: gridRect.height
+                });
+                console.log('编辑器:', {
+                  x: editorRect.x,
+                  y: editorRect.y,
+                  width: editorRect.width,
+                  height: editorRect.height
+                });
+                console.log('编辑器相对Grid的位置:', {
+                  x: editorRect.x - gridRect.x,
+                  y: editorRect.y - gridRect.y
+                });
+                
+                const editorStyle = window.getComputedStyle(editorDiv);
+                console.log('编辑器computed style:', {
+                  position: editorStyle.position,
+                  top: editorStyle.top,
+                  left: editorStyle.left,
+                  zIndex: editorStyle.zIndex
+                });
+                
+                // 检查所有输入框
+                const inputs = Array.from(editorDiv.querySelectorAll('input'));
+                console.log('输入框数量:', inputs.length);
+                inputs.forEach((input, i) => {
+                  const inputRect = input.getBoundingClientRect();
+                  const inputStyle = window.getComputedStyle(input);
+                  console.log(`输入框${i}:`, {
+                    位置: {
+                      x: inputRect.x,
+                      y: inputRect.y,
+                      width: inputRect.width,
+                      height: inputRect.height
+                    },
+                    样式: {
+                      opacity: inputStyle.opacity,
+                      pointerEvents: inputStyle.pointerEvents
+                    },
+                    值: input.value
+                  });
+                });
+              }
+            } else {
+              console.log('未找到编辑器');
+            }
+          }, 500);
+        }
+      }, 1000);
+    });
+  </script>
+</head>
+<body>
+  <h1>Editor Position Test - 请打开控制台查看调试信息</h1>
+  <a href="/">返回主页</a>
+</body>
+</html>
+

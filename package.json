@@ -1,0 +1,19 @@
+{
+  "name": "leven-workspace",
+  "private": true,
+  "devDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react": "^18.2.69",
+    "@types/react-dom": "^18.2.22"
+  },
+  "pnpm": {
+    "overrides": {
+      "ts-keycode-enum": "^1.0.6",
+      "react": "^18.3.1",
+      "react-dom": "^18.3.1"
+    }
+  }
+}
+
+
