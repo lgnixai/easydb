@@ -155,6 +155,21 @@ class SimpleTeableClient {
     }
   }
 
+  async deleteField(field_id: string, table_id?: string): Promise<void> {
+    try {
+      const params = table_id ? { table_id } : {};
+      console.log('[deleteField] 删除字段请求:', { field_id, table_id, params, url: `${this.baseURL}/api/fields/${field_id}` });
+      await axios.delete(`${this.baseURL}/api/fields/${field_id}`, { 
+        headers: this.getHeaders(),
+        params 
+      });
+      console.log('[deleteField] 删除成功');
+    } catch (error: any) {
+      console.error('[deleteField] 删除失败:', error.response?.data || error);
+      throw new Error(`删除字段失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
   // ========== Records ==========
   async listRecords(params: { table_id: string; limit?: number; offset?: number }): Promise<PaginatedResponse<RecordItem>> {
     try {
@@ -212,6 +227,14 @@ class SimpleTeableClient {
       await axios.delete(`${this.baseURL}/api/records/${body.record_id}`, { headers: this.getHeaders() });
     } catch (error: any) {
       throw new Error(`删除记录失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  async deleteTable(table_id: string): Promise<void> {
+    try {
+      await axios.delete(`${this.baseURL}/api/tables/${table_id}`, { headers: this.getHeaders() });
+    } catch (error: any) {
+      throw new Error(`删除表失败: ${error.response?.data?.message || error.message}`);
     }
   }
 

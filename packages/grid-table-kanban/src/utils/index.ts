@@ -4,3 +4,5 @@
 
 export * from './color';
 export * from './string';
+export * from './field-mapping';
+export * from './cell-factory';

@@ -222,18 +222,47 @@ export const ObsidianLayout = () => {
     });
   };
 
-  const handleFileDelete = (fileName: string) => {
+  const handleFileDelete = async (fileName: string) => {
     // Close tab if open
     const tabToClose = openTabs.find(tab => tab.title === fileName);
     if (tabToClose) {
       handleTabClose(tabToClose.id);
     }
     
-    toast({
-      title: "文件已删除",
-      description: `${fileName} 已被删除`,
-      variant: "destructive",
-    });
+    // 从文件名解析表名，调用后端 API 删除表
+    const tableName = fileName.replace(/\.md$/i, "");
+    try {
+      // 先获取表列表，找到对应的 table_id
+      const tablesResp = await teable.listTables({ base_id: selectedBaseId, limit: 200 });
+      const tableToDelete = tablesResp.data.find(t => t.name === tableName);
+      
+      if (tableToDelete) {
+        await teable.deleteTable(tableToDelete.id);
+        
+        // 刷新表列表
+        const updatedTablesResp = await teable.listTables({ base_id: selectedBaseId, limit: 200 });
+        const tableNames = updatedTablesResp.data.map(t => `${t.name}.md`);
+        setCurrentTables(tableNames);
+        
+        toast({
+          title: "表已删除",
+          description: `表 "${tableName}" 已成功删除`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "删除失败",
+          description: `未找到表 "${tableName}"`,
+          variant: "destructive",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "删除失败",
+        description: String(e?.message || e),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNewFile = () => {

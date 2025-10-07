@@ -39,6 +39,8 @@ import {
   RowControlType,
   Colors,
 } from '@teable/grid-table-kanban'
+import { buildCellFromField } from '@teable/grid-table-kanban'
+import { buildFieldMetaById } from '../lib/field-type-mapping'
 
 import teable, { ensureLogin } from '../lib/teable-simple'
 
@@ -134,6 +136,8 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
   const [formValues, setFormValues] = useState<Record<string, any>>({})
   // 字段 id->name 映射（旧项目后端按字段名作为键）
   const [fieldIdToName, setFieldIdToName] = useState<Record<string, string>>({})
+  const nameToFieldId = useMemo(() => Object.fromEntries(Object.entries(fieldIdToName).map(([id, name]) => [name, id])), [fieldIdToName])
+  const [fieldMetaById, setFieldMetaById] = useState<Record<string, { type: FieldType; options?: unknown; readonly?: boolean }>>({})
 
   // 当传入 tableId 时，自动从后端加载字段与数据
   useEffect(() => {
@@ -153,6 +157,9 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
         const id2name: Record<string, string> = {}
         ;(fieldsResp?.data || []).forEach((f: any) => (id2name[f.id] = f.name))
         setFieldIdToName(id2name)
+
+        // 记录字段元数据（类型/只读等），用于构建正确的单元格类型
+        setFieldMetaById(buildFieldMetaById(fieldsResp?.data || []))
 
         // 加载记录
         const recResp = await teable.listRecords({ table_id: String(props.tableId), limit: 1000 })
@@ -285,6 +292,18 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
       return { type: CellType.Text, data: '', displayData: '' }
     }
 
+    // 对齐原项目：若为后端字段列，则使用字段元数据 + 工厂生成正确的单元格类型
+    let meta = fieldMetaById[columnId as string]
+    // 兼容列 id 不是后端字段 id 的情况（例如误用字段名作为列 id）
+    if (!meta) {
+      const guessedId = nameToFieldId[column?.name as string]
+      if (guessedId) meta = fieldMetaById[guessedId]
+    }
+    if (meta) {
+      const raw = (row as any)[columnId]
+      return buildCellFromField(meta, raw)
+    }
+
     switch (columnId) {
       case 'actions':
         return { type: CellType.Text, data: '↗', displayData: '↗' }
@@ -318,7 +337,7 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
         }
         return {
           type: CellType.Select,
-          data: [{ title: row.priority.toUpperCase(), id: row.priority, color: colorMap[row.priority] }],
+          data: [{ title: row.priority.toUpperCase(), id: row.priority }],
           displayData: [row.priority.toUpperCase()],
           isMultiple: false,
         }
@@ -533,13 +552,6 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
 
     try {
       await ensureLogin()
-      // 自动授予当前用户对该表的编辑权限（若已有权限，后端会忽略）
-      try {
-        const profile = await teable.getProfile()
-        if (profile?.id && props?.tableId) {
-          await teable.grantTableEditPermission({ user_id: profile.id, table_id: String(props.tableId) })
-        }
-      } catch {}
       
       // 构建字段数据：使用实际的字段名（从 fieldIdToName 映射）
       const fields: Record<string, any> = {}
@@ -692,9 +704,53 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     }
   }, [columns])
 
-  const handleDeleteColumn = useCallback((columnIndex: number) => {
-    setColumns((cols) => cols.filter((_, index) => index !== columnIndex))
-  }, [])
+  const handleDeleteColumn = useCallback(async (columnIndex: number) => {
+    // 本地先删除，提升响应；保留快照以便失败回滚
+    let removedId: string | undefined
+    let removedCol: IGridColumn | undefined
+    const prevColumns = columns
+    setColumns((cols) => {
+      removedCol = cols[columnIndex]
+      removedId = removedCol?.id as string | undefined
+      return cols.filter((_, index) => index !== columnIndex)
+    })
+
+    const prevMeta = fieldMetaById
+    // 清理字段元数据映射（如果有）
+    setFieldMetaById((prev) => {
+      if (!removedId || !(removedId in prev)) return prev
+      const cp = { ...prev }
+      delete cp[removedId]
+      return cp
+    })
+
+    // 同步后端删除；失败则回滚本地状态
+      try {
+        if (removedId && props.tableId) {
+          await ensureLogin()
+          await teable.deleteField(removedId, props.tableId)
+      }
+    } catch (e) {
+      console.error('删除字段失败', e)
+      // 回滚列
+      setColumns((cols) => {
+        // 若该列已存在就不重复插入
+        if (removedCol && !cols.some(c => c.id === removedCol!.id)) {
+          const cp = [...cols]
+          // 简单回滚到原位置；若超出范围则追加
+          const insertAt = Math.min(columnIndex, cp.length)
+          cp.splice(insertAt, 0, removedCol as IGridColumn)
+          return cp
+        }
+        return cols
+      })
+      // 回滚元数据
+      if (removedId && !(removedId in prevMeta)) {
+        setFieldMetaById(prevMeta)
+      }
+      alert(`删除字段失败: ${e instanceof Error ? e.message : '未知错误'}`)
+    }
+  }, [columns, fieldMetaById, props.tableId])
 
   // 列排序
   const handleColumnOrdered = useCallback((dragCols: number[], dropCol: number) => {

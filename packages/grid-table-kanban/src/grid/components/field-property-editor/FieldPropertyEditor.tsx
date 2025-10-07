@@ -3,7 +3,8 @@ import type { ForwardRefRenderFunction } from 'react';
 import { forwardRef, useImperativeHandle } from 'react';
 import type { IGridColumn } from '../../interface';
 import type { CellType } from '../../renderers/cell-renderer/interface';
-import { FieldTypeSelector, FIELD_TYPES, type IFieldTypeSelectorRef } from '../field-type-selector/FieldTypeSelector';
+import { FieldTypeSelector, FIELD_TYPE_CONFIGS, type IFieldTypeSelectorRef } from '../field-type-selector/FieldTypeSelector';
+import { FieldType } from '../../../types/field';
 import { useRef } from 'react';
 import { Input } from '../../../ui';
 
@@ -32,19 +33,19 @@ const FieldPropertyEditorBase: ForwardRefRenderFunction<
     icon: '',
     isPrimary: false,
     customTheme: undefined,
-    type: 'text' as unknown as CellType,
+    type: FieldType.SingleLineText as unknown as FieldType,
     required: false,
     defaultValue: '',
   });
 
-  // 对齐旧系统类型集合
-  const fieldTypeOptions = FIELD_TYPES.map((t) => ({ label: t.name, value: t.type }));
+  // 对齐新选择器配置集合（内部存储 FieldType）
+  const fieldTypeOptions = FIELD_TYPE_CONFIGS.map((t) => ({ label: t.name, value: t.fieldType }));
   const fieldTypeSelectorRef = useRef<IFieldTypeSelectorRef>(null);
   const typeAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const openTypeSelector = () => {
     const rect = typeAnchorRef.current?.getBoundingClientRect();
-    // 定位到输入框右侧对齐、并与输入框顶部对齐，贴近旧系统
+    // 定位到输入框右侧对齐，顶部对齐（类似下拉菜单）
     const x = (rect?.right ?? 0) + window.scrollX + 8; // 右侧略偏移
     const y = (rect?.top ?? 0) + window.scrollY; // 顶部对齐
     fieldTypeSelectorRef.current?.show({ x, y });
@@ -76,7 +77,7 @@ const FieldPropertyEditorBase: ForwardRefRenderFunction<
         icon: column.icon || '',
         isPrimary: column.isPrimary || false,
         customTheme: column.customTheme,
-        type: (column as any).type ?? ('text' as unknown as CellType),
+        type: (column as any).type ?? (FieldType.SingleLineText as unknown as FieldType),
         required: false,
         defaultValue: '',
       });
@@ -101,7 +102,7 @@ const FieldPropertyEditorBase: ForwardRefRenderFunction<
         customTheme: formData.customTheme,
       };
       // 扩展字段：类型、校验、默认值（暂存到扩展属性，后续接入后端时再对齐）
-      (updatedColumn as any).type = formData.type;
+      (updatedColumn as any).type = formData.type as unknown as FieldType;
       (updatedColumn as any).required = formData.required;
       (updatedColumn as any).defaultValue = formData.defaultValue;
       onSave?.(columnIndex, updatedColumn);
@@ -260,8 +261,8 @@ const FieldPropertyEditorBase: ForwardRefRenderFunction<
       </div>
       <FieldTypeSelector
         ref={fieldTypeSelectorRef}
-        currentType={formData.type}
-        onSelect={(ft) => setFormData(prev => ({ ...prev, type: ft.type }))}
+        currentFieldType={undefined}
+        onSelect={(ft) => setFormData(prev => ({ ...prev, type: ft.fieldType as unknown as FieldType }))}
         onCancel={() => undefined}
         onHoverStateChange={(hovered) => {
           isHoveringPanel = hovered;

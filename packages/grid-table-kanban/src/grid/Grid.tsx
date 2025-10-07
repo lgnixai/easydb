@@ -592,7 +592,7 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
       columns.length,
       { x: Math.max(x, pageLeft), y, width: panelWidth }
     );
-  }, [columns.length, coordInstance.containerWidth, columnHeaderHeight]);
+  }, [columns.length, coordInstance, scrollState.scrollLeft, columnHeaderHeight]);
 
   // 处理列头右键菜单（位置：顶部与第一行对齐，左边与列左边对齐）
   const handleColumnHeaderMenuClick = useCallback((colIndex: number, bounds: IRectangle) => {

@@ -2,14 +2,17 @@ import { useMemo, useState } from 'react';
 import type { ForwardRefRenderFunction } from 'react';
 import { forwardRef, useImperativeHandle } from 'react';
 import { CellType } from '../../renderers/cell-renderer/interface';
+import { FieldType } from '../../../types/field';
+import { getCellTypeFromFieldType, isReadonlyField } from '../../../utils/field-mapping';
 
-export interface IFieldType {
-  type: CellType;
+export interface IFieldTypeInfo {
+  fieldType: FieldType;
+  cellType: CellType;
   name: string;
   description: string;
   icon: string;
-  // 旧系统字段类型（用于对齐显示与后续接入），例如 singleLineText、link 等
-  legacyType?: string;
+  category: 'basic' | 'advanced' | 'system';
+  isReadonly?: boolean;
 }
 
 export interface IFieldTypeSelectorRef {
@@ -18,40 +21,186 @@ export interface IFieldTypeSelectorRef {
 }
 
 export interface IFieldTypeSelectorProps {
-  onSelect?: (fieldType: IFieldType) => void;
+  onSelect?: (fieldTypeInfo: IFieldTypeInfo) => void;
   onCancel?: () => void;
-  currentType?: CellType;
+  currentFieldType?: FieldType;
   onHoverStateChange?: (hovered: boolean) => void;
+  showSystemFields?: boolean; // 是否显示系统字段（创建时间、修改人等）
 }
 
-// 对齐旧系统 FieldType 的顺序与命名（映射到当前可支持的 CellType）
-export const FIELD_TYPES: IFieldType[] = [
-  { legacyType: 'singleLineText', type: CellType.Text, name: '单行文本', description: '输入简短文本', icon: 'A' },
-  { legacyType: 'longText', type: CellType.Text, name: '长文本', description: '多行文本', icon: '📝' },
-  { legacyType: 'number', type: CellType.Number, name: '数字', description: '数值输入', icon: '#' },
-  { legacyType: 'singleSelect', type: CellType.Select, name: '单选', description: '下拉单选', icon: '◯' },
-  { legacyType: 'multipleSelect', type: CellType.Select, name: '多选', description: '多项选择', icon: '☑️' },
-  { legacyType: 'user', type: CellType.User, name: '用户', description: '成员选择', icon: '👤' },
-  { legacyType: 'date', type: CellType.Date, name: '日期', description: '日期/时间', icon: '📅' },
-  { legacyType: 'rating', type: CellType.Rating, name: '评分', description: '星级评分', icon: '⭐' },
-  { legacyType: 'checkbox', type: CellType.Boolean, name: '勾选', description: '是/否', icon: '✔︎' },
-  { legacyType: 'attachment', type: CellType.Attachment, name: '附件', description: '文件上传', icon: '📎' },
-  { legacyType: 'formula', type: CellType.Text, name: '公式', description: '根据公式计算', icon: 'ƒ' },
-  { legacyType: 'link', type: CellType.Link, name: '关联', description: '与其他表建立关联', icon: '🔗' },
-  { legacyType: 'rollup', type: CellType.Text, name: '汇总', description: '对关联结果汇总', icon: 'Σ' },
-  { legacyType: 'createdTime', type: CellType.Date, name: '创建时间', description: '记录创建时间', icon: '🕒' },
-  { legacyType: 'lastModifiedTime', type: CellType.Date, name: '修改时间', description: '记录上次修改', icon: '🕘' },
-  { legacyType: 'createdBy', type: CellType.User, name: '创建人', description: '记录创建者', icon: '👤' },
-  { legacyType: 'lastModifiedBy', type: CellType.User, name: '修改人', description: '记录最后修改者', icon: '👥' },
-  { legacyType: 'autoNumber', type: CellType.Number, name: '自增数字', description: '自动递增编号', icon: '№' },
-  { legacyType: 'button', type: CellType.Button, name: '按钮', description: '点击触发动作', icon: '⏺' },
+// 完整的字段类型定义 - 与参考项目对齐
+export const FIELD_TYPE_CONFIGS: IFieldTypeInfo[] = [
+  // 基础字段类型
+  { 
+    fieldType: FieldType.SingleLineText, 
+    cellType: CellType.Text, 
+    name: '单行文本', 
+    description: '输入简短文本', 
+    icon: 'A',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.LongText, 
+    cellType: CellType.Text, 
+    name: '长文本', 
+    description: '多行文本输入', 
+    icon: '📝',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.Number, 
+    cellType: CellType.Number, 
+    name: '数字', 
+    description: '数值输入与计算', 
+    icon: '#',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.SingleSelect, 
+    cellType: CellType.Select, 
+    name: '单选', 
+    description: '从选项中选择一个', 
+    icon: '◯',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.MultipleSelect, 
+    cellType: CellType.Select, 
+    name: '多选', 
+    description: '从选项中选择多个', 
+    icon: '☑️',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.User, 
+    cellType: CellType.User, 
+    name: '用户', 
+    description: '选择协作成员', 
+    icon: '👤',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.Date, 
+    cellType: CellType.Date, 
+    name: '日期', 
+    description: '日期和时间', 
+    icon: '📅',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.Rating, 
+    cellType: CellType.Rating, 
+    name: '评分', 
+    description: '星级评分', 
+    icon: '⭐',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.Checkbox, 
+    cellType: CellType.Boolean, 
+    name: '勾选', 
+    description: '是/否 勾选框', 
+    icon: '✔︎',
+    category: 'basic'
+  },
+  { 
+    fieldType: FieldType.Attachment, 
+    cellType: CellType.Attachment, 
+    name: '附件', 
+    description: '上传文件和图片', 
+    icon: '📎',
+    category: 'basic'
+  },
+  
+  // 高级字段类型
+  { 
+    fieldType: FieldType.Link, 
+    cellType: CellType.Link, 
+    name: '关联', 
+    description: '关联其他表记录', 
+    icon: '🔗',
+    category: 'advanced'
+  },
+  { 
+    fieldType: FieldType.Formula, 
+    cellType: CellType.Text, 
+    name: '公式', 
+    description: '使用公式自动计算', 
+    icon: 'ƒ',
+    category: 'advanced',
+    isReadonly: true
+  },
+  { 
+    fieldType: FieldType.Rollup, 
+    cellType: CellType.Text, 
+    name: '汇总', 
+    description: '汇总关联记录的值', 
+    icon: 'Σ',
+    category: 'advanced',
+    isReadonly: true
+  },
+  { 
+    fieldType: FieldType.Button, 
+    cellType: CellType.Button, 
+    name: '按钮', 
+    description: '触发自定义操作', 
+    icon: '⏺',
+    category: 'advanced'
+  },
+  
+  // 系统字段类型
+  { 
+    fieldType: FieldType.CreatedTime, 
+    cellType: CellType.Date, 
+    name: '创建时间', 
+    description: '自动记录创建时间', 
+    icon: '🕒',
+    category: 'system',
+    isReadonly: true
+  },
+  { 
+    fieldType: FieldType.LastModifiedTime, 
+    cellType: CellType.Date, 
+    name: '修改时间', 
+    description: '自动记录修改时间', 
+    icon: '🕘',
+    category: 'system',
+    isReadonly: true
+  },
+  { 
+    fieldType: FieldType.CreatedBy, 
+    cellType: CellType.User, 
+    name: '创建人', 
+    description: '自动记录创建者', 
+    icon: '👤',
+    category: 'system',
+    isReadonly: true
+  },
+  { 
+    fieldType: FieldType.LastModifiedBy, 
+    cellType: CellType.User, 
+    name: '修改人', 
+    description: '自动记录修改者', 
+    icon: '👥',
+    category: 'system',
+    isReadonly: true
+  },
+  { 
+    fieldType: FieldType.AutoNumber, 
+    cellType: CellType.Number, 
+    name: '自增数字', 
+    description: '自动递增的编号', 
+    icon: '№',
+    category: 'system',
+    isReadonly: true
+  },
 ];
 
 const FieldTypeSelectorBase: ForwardRefRenderFunction<
   IFieldTypeSelectorRef,
   IFieldTypeSelectorProps
 > = (props, ref) => {
-  const { onSelect, onCancel, currentType, onHoverStateChange } = props;
+  const { onSelect, onCancel, currentFieldType, onHoverStateChange, showSystemFields = true } = props;
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [keyword, setKeyword] = useState('');
@@ -66,70 +215,122 @@ const FieldTypeSelectorBase: ForwardRefRenderFunction<
     },
   }));
 
-  const handleSelect = (fieldType: IFieldType) => {
-    onSelect?.(fieldType);
+  const handleSelect = (fieldTypeInfo: IFieldTypeInfo) => {
+    onSelect?.(fieldTypeInfo);
     setIsVisible(false);
+    setKeyword('');
   };
 
   const handleCancel = () => {
     onCancel?.();
     setIsVisible(false);
+    setKeyword('');
   };
 
-  const filtered = useMemo(() => {
+  // 过滤和分组字段类型
+  const { basicFields, advancedFields, systemFields } = useMemo(() => {
     const k = keyword.trim().toLowerCase();
-    if (!k) return FIELD_TYPES;
-    return FIELD_TYPES.filter(ft =>
-      ft.name.toLowerCase().includes(k) || ft.legacyType?.toLowerCase().includes(k)
-    );
-  }, [keyword]);
-
-  // 双列视图：直接对 filtered 进行双列网格展示（更贴近原版）
+    let fields = FIELD_TYPE_CONFIGS;
+    
+    // 根据设置过滤系统字段
+    if (!showSystemFields) {
+      fields = fields.filter(f => f.category !== 'system');
+    }
+    
+    // 根据关键词过滤
+    if (k) {
+      fields = fields.filter(ft =>
+        ft.name.toLowerCase().includes(k) || 
+        ft.description.toLowerCase().includes(k) ||
+        ft.fieldType.toLowerCase().includes(k)
+      );
+    }
+    
+    return {
+      basicFields: fields.filter(f => f.category === 'basic'),
+      advancedFields: fields.filter(f => f.category === 'advanced'),
+      systemFields: fields.filter(f => f.category === 'system'),
+    };
+  }, [keyword, showSystemFields]);
 
   if (!isVisible) return null;
 
-  return (
-    <div
-      className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-2xl min-w-[640px]"
-      style={{ left: position.x, top: position.y, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}
-      onMouseEnter={() => onHoverStateChange?.(true)}
-      onMouseLeave={() => onHoverStateChange?.(false)}
-    >
-      <div className="sticky top-0 z-10 bg-white px-4 pt-3 pb-2 border-b border-gray-100 rounded-t-xl">
-        <div className="text-sm font-medium text-gray-700 mb-2">字段类型</div>
-        <div className="relative">
-          <input
-            className="w-full rounded-md border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="搜索"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-          <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
-        </div>
-      </div>
-
-      <div className="px-3 pb-3 max-h-[calc(100vh-180px)] overflow-y-auto">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-          {filtered.map((fieldType) => (
+  const renderFieldGroup = (title: string, fields: IFieldTypeInfo[]) => {
+    if (fields.length === 0) return null;
+    
+    return (
+      <div className="mb-3">
+        {!keyword && <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">{title}</div>}
+        <div className="grid grid-cols-1 gap-y-2 px-3">
+          {fields.map((fieldTypeInfo) => (
             <button
-              key={fieldType.legacyType ?? fieldType.type}
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-colors w-full ${currentType === fieldType.type ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
-              onClick={() => handleSelect(fieldType)}
+              key={fieldTypeInfo.fieldType}
+              className={`flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all w-full ${
+                currentFieldType === fieldTypeInfo.fieldType 
+                  ? 'bg-blue-50 border-2 border-blue-500' 
+                  : 'hover:bg-gray-50 border-2 border-transparent'
+              }`}
+              onClick={() => handleSelect(fieldTypeInfo)}
             >
-              <span className="text-lg w-6 text-center">{fieldType.icon}</span>
-              <div className="flex-1">
-                <div className="text-[13px] font-medium text-gray-900">{fieldType.name}</div>
-                <div className="text-[12px] text-gray-500">{fieldType.description}</div>
+              <span className="text-lg w-6 text-center shrink-0">{fieldTypeInfo.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-gray-900 truncate">
+                  {fieldTypeInfo.name}
+                  {fieldTypeInfo.isReadonly && <span className="ml-1 text-[10px] text-gray-400">(只读)</span>}
+                </div>
+                <div className="text-[11px] text-gray-500 truncate">{fieldTypeInfo.description}</div>
               </div>
-              {currentType === fieldType.type && <span className="text-blue-600 text-sm">✓</span>}
+              {currentFieldType === fieldTypeInfo.fieldType && (
+                <span className="text-blue-600 text-sm shrink-0">✓</span>
+              )}
             </button>
           ))}
         </div>
       </div>
+    );
+  };
 
-      <div className="px-2 py-2 border-t border-gray-100 rounded-b-xl">
+  return (
+    <div
+      className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-2xl w-[400px]"
+      style={{ 
+        left: Math.min(position.x, window.innerWidth - 420), 
+        top: Math.min(position.y, window.innerHeight - 500), 
+        maxHeight: '480px'
+      }}
+      onMouseEnter={() => onHoverStateChange?.(true)}
+      onMouseLeave={() => onHoverStateChange?.(false)}
+    >
+      <div className="sticky top-0 z-10 bg-white px-4 pt-4 pb-3 border-b border-gray-100 rounded-t-xl">
+        <div className="text-base font-semibold text-gray-800 mb-3">选择字段类型</div>
+        <div className="relative">
+          <input
+            className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="搜索字段类型..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            autoFocus
+          />
+          <span className="absolute left-3 top-3 text-gray-400 text-sm">🔍</span>
+        </div>
+      </div>
+
+      <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
+        {renderFieldGroup('基础字段', basicFields)}
+        {renderFieldGroup('高级字段', advancedFields)}
+        {showSystemFields && renderFieldGroup('系统字段', systemFields)}
+        
+        {basicFields.length === 0 && advancedFields.length === 0 && systemFields.length === 0 && (
+          <div className="px-6 py-12 text-center text-gray-500">
+            <div className="text-4xl mb-3">🔍</div>
+            <div className="text-sm">未找到匹配的字段类型</div>
+          </div>
+        )}
+      </div>
+
+      <div className="sticky bottom-0 px-3 py-3 border-t border-gray-100 bg-white rounded-b-xl">
         <button
-          className="w-full px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 rounded-md transition-colors"
+          className="w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition-colors font-medium"
           onClick={handleCancel}
         >
           取消
