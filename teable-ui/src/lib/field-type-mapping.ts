@@ -13,6 +13,8 @@ export type FrontFieldType =
   | 'link'
   | 'formula'
   | 'rollup'
+  | 'lookup'
+  | 'ai'
   | 'autoNumber'
   | 'createdTime'
   | 'lastModifiedTime'
@@ -54,6 +56,11 @@ export const mapBackendTypeToFieldType = (t: string): FrontFieldType => {
       return 'formula'
     case 'rollup':
       return 'rollup'
+    case 'lookup':
+      return 'lookup'
+    case 'ai':
+    case 'virtual_ai':
+      return 'ai'
     case 'auto_number':
     case 'autonumber':
       return 'autoNumber'
