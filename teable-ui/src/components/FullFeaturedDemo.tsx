@@ -803,14 +803,53 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
   }, [saveHistory])
 
   // 删除选中的行/列（行删除会同步数据库）
-  const handleDelete = useCallback(async (selection: CombinedSelection) => {
+  const handleDelete = useCallback(async (selectionParam: CombinedSelection) => {
+    console.log('=== handleDelete 被调用 ===')
+    console.log('传入的 selection:', selectionParam)
+    
+    // 如果传入的selection不完整，使用当前的选择状态
+    const effectiveSelection = selectionParam.ranges ? selectionParam : (selection || { type: 'rows', ranges: [] })
+    console.log('有效的 selection:', effectiveSelection)
+    console.log('effectiveSelection.ranges:', effectiveSelection.ranges)
+    console.log('effectiveSelection.type:', effectiveSelection.type)
+    
     saveHistory()
 
-    if (selection.type === 'rows') {
-      const rowsToDelete = new Set(selection.ranges.flatMap(range => {
-        const [start, end] = range as [number, number]
-        return Array.from({ length: end - start + 1 }, (_, i) => start + i)
-      }))
+    if (effectiveSelection.type === 'rows' || effectiveSelection.type === 'Rows' || effectiveSelection.type === 'Cells') {
+      console.log('开始处理删除操作，类型:', effectiveSelection.type)
+      
+      let rowsToDelete: Set<number>
+      
+      if (effectiveSelection.type === 'rows' || effectiveSelection.type === 'Rows') {
+        // 行选择：直接使用范围
+        rowsToDelete = new Set(effectiveSelection.ranges.flatMap(range => {
+          const [start, end] = range as [number, number]
+          return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+        }))
+      } else {
+        // 单元格选择：提取行号
+        console.log('单元格选择范围详情:', effectiveSelection.ranges)
+        rowsToDelete = new Set(effectiveSelection.ranges.flatMap(range => {
+          console.log('处理范围:', range)
+          // 检查range的格式
+          if (Array.isArray(range) && range.length === 2 && Array.isArray(range[0]) && Array.isArray(range[1])) {
+            // 格式: [[startCol, startRow], [endCol, endRow]]
+            const [[startCol, startRow], [endCol, endRow]] = range as [[number, number], [number, number]]
+            console.log('解析范围:', { startCol, startRow, endCol, endRow })
+            return Array.from({ length: endRow - startRow + 1 }, (_, i) => startRow + i)
+          } else if (Array.isArray(range) && range.length === 2 && typeof range[0] === 'number' && typeof range[1] === 'number') {
+            // 格式: [start, end] - 直接作为行范围
+            const [start, end] = range as [number, number]
+            console.log('解析行范围:', { start, end })
+            return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+          } else {
+            console.log('未知范围格式:', range)
+            return []
+          }
+        }))
+      }
+      
+      console.log('要删除的行索引:', Array.from(rowsToDelete))
 
       // 先收集要删除的记录信息
       const recordsToDelete: { recordId: string; index: number; record: any }[] = []
@@ -854,20 +893,26 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
         const errorMessage = e instanceof Error ? e.message : '未知错误'
         alert(`删除记录失败: ${errorMessage}`)
       }
-    } else if (selection.type === 'columns') {
-      const colsToDelete = new Set(selection.ranges.flatMap(range => {
+    } else if (effectiveSelection.type === 'columns') {
+      const colsToDelete = new Set(effectiveSelection.ranges.flatMap(range => {
         const [start, end] = range as [number, number]
         return Array.from({ length: end - start + 1 }, (_, i) => start + i)
       }))
       setColumns(prev => prev.filter((_, i) => !colsToDelete.has(i)))
     }
-  }, [saveHistory, data, props.tableId])
+  }, [saveHistory, data, props.tableId, selection])
 
   // 测试删除功能
   const testDeleteFunction = useCallback(async () => {
     console.log('测试删除功能开始')
     console.log('当前数据:', data)
     console.log('当前选择:', selection)
+    
+    if (!selection) {
+      console.log('没有选择任何内容')
+      return
+    }
+    
     console.log('选择类型:', selection.type)
     console.log('选择范围:', selection.ranges)
     

@@ -243,6 +243,19 @@ class SimpleTeableClient {
     }
   }
 
+  async deleteRecords(body: { table_id: string; record_ids: string[] }): Promise<void> {
+    try {
+      // 参考 teable-develop 的批量删除实现
+      // 使用 DELETE /api/records/bulk 端点
+      await axios.delete(`${this.baseURL}/api/records/bulk`, {
+        headers: this.getHeaders(),
+        data: { record_ids: body.record_ids }
+      });
+    } catch (error: any) {
+      throw new Error(`批量删除记录失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
   async deleteTable(table_id: string): Promise<void> {
     try {
       await axios.delete(`${this.baseURL}/api/tables/${table_id}`, { headers: this.getHeaders() });

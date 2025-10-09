@@ -212,3 +212,6 @@ readonly: Boolean(f.is_system) || Boolean(f.read_only) || Boolean(f.is_computed)
 5. **成功创建** → 虚拟字段自动计算并返回
 
 现在前端可以正确处理验证错误并显示给用户，同时确保只发送必要的数据到后端！
+
+
+

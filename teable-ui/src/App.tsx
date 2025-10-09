@@ -12,6 +12,8 @@ import RankDemo from "./components/RankDemo";
 import RankTestPage from "./components/RankTestPage";
 import FormulaEditorScrollTest from "./components/FormulaEditorTest";
 import { FormulaFieldTest } from "./components/FormulaFieldTest";
+import { GlideGridDemo } from "./pages/GlideGridDemo";
+import { DeleteTestPage } from "./pages/DeleteTestPage";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ const App = () => (
             <Route path="/rank-test" element={<RankTestPage />} />
             <Route path="/formula-editor-test" element={<FormulaEditorScrollTest />} />
             <Route path="/formula-field-test" element={<FormulaFieldTest />} />
+            <Route path="/glide-grid-demo" element={<GlideGridDemo />} />
+            <Route path="/delete-test" element={<DeleteTestPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
