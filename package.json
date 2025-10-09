@@ -1,19 +1,47 @@
 {
-  "name": "leven-workspace",
-  "private": true,
-  "devDependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@types/react": "^18.2.69",
-    "@types/react-dom": "^18.2.22"
+  "name": "easydb",
+  "version": "1.0.0",
+  "description": "EasyDB - AI-powered database management system",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:ui\"",
+    "dev:server": "cd server && go run cmd/mcp/main.go",
+    "dev:ui": "cd teable-ui && npm run dev",
+    "build": "cd teable-ui && npm run build",
+    "test": "cd teable-ui && npm test",
+    "test:ai-sidebar": "cd teable-ui && npm test -- --testPathPattern=\"AISidebar\"",
+    "test:coverage": "cd teable-ui && npm test -- --coverage --testPathPattern=\"AISidebar\"",
+    "test:watch": "cd teable-ui && npm test -- --watch --testPathPattern=\"AISidebar\"",
+    "lint": "cd teable-ui && npm run lint",
+    "lint:fix": "cd teable-ui && npm run lint:fix",
+    "type-check": "cd teable-ui && npm run type-check",
+    "clean": "rm -rf node_modules teable-ui/node_modules server/vendor",
+    "install:all": "npm install && cd teable-ui && npm install && cd ../server && go mod download",
+    "start": "npm run build && npm run dev"
   },
-  "pnpm": {
-    "overrides": {
-      "ts-keycode-enum": "^1.0.6",
-      "react": "^18.3.1",
-      "react-dom": "^18.3.1"
-    }
-  }
+  "keywords": [
+    "database",
+    "ai",
+    "ollama",
+    "mcp",
+    "teable",
+    "react",
+    "typescript"
+  ],
+  "author": "EasyDB Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/easydb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/easydb/issues"
+  },
+  "homepage": "https://github.com/your-org/easydb#readme"
 }
-
-

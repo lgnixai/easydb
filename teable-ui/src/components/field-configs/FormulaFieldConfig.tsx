@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Label } from '../ui/label'
-import { Textarea } from '../ui/textarea'
+import { Button } from '../ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Calculator } from 'lucide-react'
+import { Calculator, Edit } from 'lucide-react'
+import FormulaEditorDialog from '../FormulaEditorDialog'
 
 /**
  * Formula字段配置组件
@@ -31,6 +32,7 @@ export default function FormulaFieldConfig({
       returnType: 'text',
     }
   )
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
 
   const handleChange = (updates: Partial<FormulaFieldConfigValue>) => {
     const newConfig = { ...config, ...updates }
@@ -38,14 +40,10 @@ export default function FormulaFieldConfig({
     onChange(newConfig)
   }
 
-  const commonFunctions = [
-    { name: 'SUM', desc: '求和', example: 'SUM({field1}, {field2})' },
-    { name: 'AVERAGE', desc: '平均值', example: 'AVERAGE({field1}, {field2})' },
-    { name: 'IF', desc: '条件', example: 'IF({field} > 100, "大", "小")' },
-    { name: 'CONCAT', desc: '连接文本', example: 'CONCAT({field1}, " - ", {field2})' },
-    { name: 'TODAY', desc: '今天日期', example: 'TODAY()' },
-    { name: 'NOW', desc: '当前时间', example: 'NOW()' },
-  ]
+  const handleFormulaSubmit = (formula: string) => {
+    handleChange({ expression: formula })
+  }
+
 
   return (
     <Card className="w-full">
@@ -57,68 +55,33 @@ export default function FormulaFieldConfig({
         <CardDescription>使用公式计算字段值</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 公式表达式 */}
+        {/* 公式表达式配置 */}
         <div className="space-y-2">
-          <Label htmlFor="expression">公式表达式</Label>
-          <Textarea
-            id="expression"
-            placeholder="输入公式，例如: {field1} + {field2}"
-            value={config.expression}
-            onChange={(e) => handleChange({ expression: e.target.value })}
-            rows={4}
-            className="font-mono text-sm"
-          />
-          <p className="text-xs text-muted-foreground">
-            使用 <code className="px-1 py-0.5 bg-muted rounded">{'{{field_name}}'}</code> 引用字段
-          </p>
-        </div>
-
-        {/* 可用字段列表 */}
-        <div className="space-y-2">
-          <Label>可用字段</Label>
-          <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
-            {availableFields.map((field) => (
-              <button
-                key={field.id}
-                className="text-left px-2 py-1 text-sm hover:bg-muted rounded"
-                onClick={() => {
-                  const cursorPos = (document.getElementById('expression') as HTMLTextAreaElement)
-                    ?.selectionStart || 0
-                  const newExpression =
-                    config.expression.slice(0, cursorPos) +
-                    `{${field.name}}` +
-                    config.expression.slice(cursorPos)
-                  handleChange({ expression: newExpression })
-                }}
-              >
-                <span className="font-mono text-xs">{'{' + field.name + '}'}</span>
-                <span className="text-muted-foreground ml-1">({field.type})</span>
-              </button>
-            ))}
+          <Label>公式内容</Label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 p-3 border rounded-md bg-muted/50">
+              {config.expression ? (
+                <code className="text-sm font-mono">{config.expression}</code>
+              ) : (
+                <span className="text-muted-foreground text-sm">未设置公式</span>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditorOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Edit className="h-4 w-4" />
+              编辑公式
+            </Button>
           </div>
+          {config.expression && (
+            <p className="text-xs text-muted-foreground">
+              公式预览: <code className="px-1 py-0.5 bg-muted rounded text-xs">{config.expression}</code>
+            </p>
+          )}
         </div>
-
-        {/* 常用函数 */}
-        <details className="space-y-2">
-          <summary className="cursor-pointer text-sm font-medium">常用函数</summary>
-          <div className="space-y-2 pt-2">
-            {commonFunctions.map((fn) => (
-              <div
-                key={fn.name}
-                className="p-2 border rounded-md hover:bg-muted cursor-pointer"
-                onClick={() => {
-                  handleChange({ expression: config.expression + fn.example })
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-medium">{fn.name}</span>
-                  <span className="text-xs text-muted-foreground">{fn.desc}</span>
-                </div>
-                <code className="text-xs text-muted-foreground">{fn.example}</code>
-              </div>
-            ))}
-          </div>
-        </details>
 
         {/* 返回类型（可选） */}
         <div className="space-y-2">
@@ -141,6 +104,16 @@ export default function FormulaFieldConfig({
             ))}
           </div>
         </div>
+
+        {/* 公式编辑器弹窗 */}
+        <FormulaEditorDialog
+          open={isEditorOpen}
+          onOpenChange={setIsEditorOpen}
+          value={config.expression}
+          onChange={(formula) => handleChange({ expression: formula })}
+          availableFields={availableFields}
+          onSubmit={handleFormulaSubmit}
+        />
       </CardContent>
     </Card>
   )

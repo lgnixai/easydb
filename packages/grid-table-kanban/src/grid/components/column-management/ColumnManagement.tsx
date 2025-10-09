@@ -23,6 +23,8 @@ export interface IColumnManagementProps {
   onDeleteColumn?: (columnIndex: number) => void;
   onInsertColumnLeft?: (columnIndex: number, fieldType: IFieldType) => void;
   onInsertColumnRight?: (columnIndex: number, fieldType: IFieldType) => void;
+  // 新增：当用户点击“编辑字段”时优先回调，由上层自行展示编辑弹窗
+  onStartEditColumn?: (columnIndex: number, column: IGridColumn) => void;
 }
 
 const ColumnManagementBase: ForwardRefRenderFunction<
@@ -38,6 +40,7 @@ const ColumnManagementBase: ForwardRefRenderFunction<
     onDeleteColumn,
     onInsertColumnLeft,
     onInsertColumnRight,
+    onStartEditColumn,
   } = props;
 
   const fieldTypeSelectorRef = useRef<IFieldTypeSelectorRef>(null);
@@ -86,6 +89,11 @@ const ColumnManagementBase: ForwardRefRenderFunction<
   const handleEditField = (columnIndex: number) => {
     const column = columns[columnIndex];
     if (column) {
+      // 若外部提供了开始编辑的回调，则交给外部处理（用于自定义弹窗）
+      if (onStartEditColumn) {
+        onStartEditColumn(columnIndex, column);
+        return;
+      }
       fieldPropertyEditorRef.current?.show(column, columnIndex);
     }
   };

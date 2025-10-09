@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DirectoryTree } from "./DirectoryTree";
 import { DraggableTabSystem } from "./DraggableTabSystem";
-import { RightSidebar } from "./RightSidebar";
+import { AISidebar } from "./AISidebar/AISidebar";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { SpaceBaseSelector, SpaceOption, SpaceSelect, BaseSelect } from "./SpaceBaseSelector";
 import { AuthStatus } from "./AuthStatus";
@@ -13,8 +13,9 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Toaster } from "@/components/ui/toaster";
-import { Plus } from "lucide-react";
+import { Plus, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 interface Tab {
   id: string;
@@ -26,6 +27,7 @@ interface Tab {
 }
 
 export const ObsidianLayout = () => {
+  const navigate = useNavigate();
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(true);
   const leftPanelRef = useRef<any>(null);
@@ -39,8 +41,10 @@ export const ObsidianLayout = () => {
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>("");
   const [selectedBaseId, setSelectedBaseId] = useState<string>("");
+  const [selectedTableId, setSelectedTableId] = useState<string>("");
   const [loadingData, setLoadingData] = useState(false);
   const [currentTables, setCurrentTables] = useState<string[]>([]);
+  const [currentFields, setCurrentFields] = useState<Array<{ id: string; name: string; type?: string }>>([]);
   
   // 创建对话框状态
   const [showCreateSpaceDialog, setShowCreateSpaceDialog] = useState(false);
@@ -157,6 +161,31 @@ export const ObsidianLayout = () => {
     loadTables();
   }, [selectedBaseId, isAuthenticated, toast, selectedSpaceId, spaces]);
 
+  // 当 selectedTableId 变化时，获取该 table 的字段列表
+  useEffect(() => {
+    const loadFields = async () => {
+      if (!selectedTableId || !isAuthenticated) {
+        setCurrentFields([]);
+        return;
+      }
+      
+      try {
+        const fieldsResp = await teable.listFields({ table_id: selectedTableId, limit: 200 });
+        const fields = (fieldsResp?.data || []).map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+        }));
+        setCurrentFields(fields);
+      } catch (e: any) {
+        console.error('获取字段列表失败:', e);
+        setCurrentFields([]);
+      }
+    };
+
+    loadFields();
+  }, [selectedTableId, isAuthenticated]);
+
   const handleTabClose = (tabId: string) => {
     const newTabs = openTabs.filter(tab => tab.id !== tabId);
     setOpenTabs(newTabs);
@@ -191,6 +220,7 @@ export const ObsidianLayout = () => {
           };
           setOpenTabs(prev => [...prev, newTab]);
           setActiveTab(newTab.id);
+          setSelectedTableId(match.id); // 设置当前选中的表格 ID
           return;
         }
       } catch {}
@@ -498,6 +528,36 @@ export const ObsidianLayout = () => {
           )}
         </div>
         <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/rank-demo')}
+            className="flex items-center gap-2 text-obsidian-text-muted hover:text-obsidian-text"
+            title="排名功能演示"
+          >
+            <Trophy className="h-4 w-4" />
+            排名演示
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/rank-test')}
+            className="flex items-center gap-2 text-obsidian-text-muted hover:text-obsidian-text"
+            title="排名功能测试"
+          >
+            <Trophy className="h-4 w-4" />
+            排名测试
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/formula-editor-test')}
+            className="flex items-center gap-2 text-obsidian-text-muted hover:text-obsidian-text"
+            title="公式编辑器滚动测试"
+          >
+            📝
+            滚动测试
+          </Button>
           <AuthStatus />
           <ThemeSwitch />
         </div>
@@ -560,16 +620,47 @@ export const ObsidianLayout = () => {
         
         <ResizableHandle className={`w-1 bg-obsidian-border hover:bg-obsidian-accent transition-colors ${!showRight ? "invisible pointer-events-none" : ""}`} />
         
-        {/* Right Sidebar */}
+        {/* Right Sidebar - AI Assistant */}
         <ResizablePanel
           ref={rightPanelRef}
-          defaultSize={20}
-          minSize={10}
-          maxSize={35}
+          defaultSize={25}
+          minSize={15}
+          maxSize={40}
           collapsible
           collapsedSize={0}
         >
-          <RightSidebar />
+          <AISidebar
+            spaceId={selectedSpaceId}
+            baseId={selectedBaseId}
+            tableId={selectedTableId}
+            fields={currentFields}
+            onActionComplete={async () => {
+              // AI 操作完成后刷新列表
+              if (selectedBaseId) {
+                try {
+                  const tablesResp = await teable.listTables({ base_id: selectedBaseId, limit: 200 });
+                  const tableNames = tablesResp.data.map(t => `${t.name}.md`);
+                  setCurrentTables(tableNames);
+                } catch (e: any) {
+                  console.error('刷新表格列表失败:', e);
+                }
+              }
+              // 刷新字段列表
+              if (selectedTableId) {
+                try {
+                  const fieldsResp = await teable.listFields({ table_id: selectedTableId, limit: 200 });
+                  const fields = (fieldsResp?.data || []).map((f: any) => ({
+                    id: f.id,
+                    name: f.name,
+                    type: f.type,
+                  }));
+                  setCurrentFields(fields);
+                } catch (e: any) {
+                  console.error('刷新字段列表失败:', e);
+                }
+              }
+            }}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
       

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -15,10 +15,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Plus, Type, Hash, Calendar, Link as LinkIcon, Calculator, Sparkles, TrendingUp, Eye } from 'lucide-react'
 import {
+  // 基础字段配置
+  BaseFieldConfig,
+  SelectFieldConfig,
+  NumberFieldConfig,
+  DateFieldConfig,
+  // 虚拟字段配置
   AIFieldConfig,
   LookupFieldConfig,
   FormulaFieldConfig,
   RollupFieldConfig,
+  // 类型定义
+  type BaseFieldConfigValue,
+  type SelectFieldConfigValue,
+  type NumberFieldConfigValue,
+  type DateFieldConfigValue,
   type AIFieldConfigValue,
   type LookupFieldConfigValue,
   type FormulaFieldConfigValue,
@@ -42,20 +53,92 @@ interface CreateFieldDialogProps {
   onCreateField: (fieldData: any) => Promise<void>
   availableFields: Field[]
   trigger?: React.ReactNode
+  // 新增：编辑模式
+  mode?: 'create' | 'edit'
+  initialValue?: {
+    id?: string
+    name: string
+    type: string
+    description?: string
+    options?: any
+  }
+  onUpdateField?: (fieldId: string, updates: any) => Promise<void>
 }
 
-export default function CreateFieldDialog({
+export function CreateFieldDialog({
   open,
   onOpenChange,
   onCreateField,
   availableFields,
   trigger,
+  mode = 'create',
+  initialValue,
+  onUpdateField,
 }: CreateFieldDialogProps) {
-  const [fieldName, setFieldName] = useState('')
-  const [fieldType, setFieldType] = useState<string>('singleLineText')
-  const [description, setDescription] = useState('')
+  const [fieldName, setFieldName] = useState(initialValue?.name ?? '')
+  const [fieldType, setFieldType] = useState<string>(initialValue?.type ?? 'singleLineText')
+  const [description, setDescription] = useState(initialValue?.description ?? '')
   const [isCreating, setIsCreating] = useState(false)
 
+  // 当initialValue变化时更新状态
+  useEffect(() => {
+    if (initialValue) {
+      setFieldName(initialValue.name ?? '')
+      setFieldType(initialValue.type ?? 'singleLineText')
+      setDescription(initialValue.description ?? '')
+      
+      // 如果是编辑模式且有options，尝试恢复配置
+      if (mode === 'edit' && initialValue.options) {
+        try {
+          const options = typeof initialValue.options === 'string' 
+            ? JSON.parse(initialValue.options) 
+            : initialValue.options
+          
+          // 根据字段类型设置相应的配置
+          const fieldType = initialValue.type ?? 'singleLineText'
+          if (['singleLineText', 'longText', 'checkbox', 'rating'].includes(fieldType)) {
+            setBaseConfig(options)
+          } else if (['singleSelect', 'multipleSelect'].includes(fieldType)) {
+            setSelectConfig(options)
+          } else if (fieldType === 'number') {
+            setNumberConfig(options)
+          } else if (fieldType === 'date') {
+            setDateConfig(options)
+          } else if (fieldType === 'ai') {
+            setAiConfig(options)
+          } else if (fieldType === 'lookup') {
+            setLookupConfig(options)
+          } else if (fieldType === 'formula') {
+            setFormulaConfig(options)
+          } else if (fieldType === 'rollup') {
+            setRollupConfig(options)
+          }
+        } catch (e) {
+          console.warn('无法解析字段选项配置:', e)
+        }
+      }
+    }
+  }, [initialValue, mode])
+
+  // 当字段类型更改时重置相关配置状态
+  useEffect(() => {
+    // 重置所有配置状态，让用户重新配置新类型
+    setBaseConfig(undefined)
+    setSelectConfig(undefined)
+    setNumberConfig(undefined)
+    setDateConfig(undefined)
+    setAiConfig(undefined)
+    setLookupConfig(undefined)
+    setFormulaConfig(undefined)
+    setRollupConfig(undefined)
+  }, [fieldType])
+
+  // 基础字段配置
+  const [baseConfig, setBaseConfig] = useState<BaseFieldConfigValue | undefined>()
+  const [selectConfig, setSelectConfig] = useState<SelectFieldConfigValue | undefined>()
+  const [numberConfig, setNumberConfig] = useState<NumberFieldConfigValue | undefined>()
+  const [dateConfig, setDateConfig] = useState<DateFieldConfigValue | undefined>()
+  
   // 虚拟字段配置
   const [aiConfig, setAiConfig] = useState<AIFieldConfigValue | undefined>()
   const [lookupConfig, setLookupConfig] = useState<LookupFieldConfigValue | undefined>()
@@ -97,6 +180,32 @@ export default function CreateFieldDialog({
 
       // 根据字段类型添加相应的配置
       switch (fieldType) {
+        // 基础字段配置
+        case 'singleLineText':
+        case 'longText':
+        case 'checkbox':
+        case 'rating':
+          if (baseConfig) {
+            fieldData.options = JSON.stringify(baseConfig)
+          }
+          break
+        case 'singleSelect':
+        case 'multipleSelect':
+          if (selectConfig) {
+            fieldData.options = JSON.stringify(selectConfig)
+          }
+          break
+        case 'number':
+          if (numberConfig) {
+            fieldData.options = JSON.stringify(numberConfig)
+          }
+          break
+        case 'date':
+          if (dateConfig) {
+            fieldData.options = JSON.stringify(dateConfig)
+          }
+          break
+        // 虚拟字段配置
         case 'ai':
           if (aiConfig) {
             fieldData.ai_config = JSON.stringify(aiConfig)
@@ -124,12 +233,20 @@ export default function CreateFieldDialog({
           break
       }
 
-      await onCreateField(fieldData)
+      if (mode === 'edit' && initialValue?.id && onUpdateField) {
+        await onUpdateField(initialValue.id, fieldData)
+      } else {
+        await onCreateField(fieldData)
+      }
 
       // 重置表单
       setFieldName('')
       setFieldType('singleLineText')
       setDescription('')
+      setBaseConfig(undefined)
+      setSelectConfig(undefined)
+      setNumberConfig(undefined)
+      setDateConfig(undefined)
       setAiConfig(undefined)
       setLookupConfig(undefined)
       setFormulaConfig(undefined)
@@ -150,9 +267,12 @@ export default function CreateFieldDialog({
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>创建新字段</DialogTitle>
+          <DialogTitle>{mode === 'edit' ? '编辑字段' : '创建新字段'}</DialogTitle>
           <DialogDescription>
-            {isVirtualField ? '虚拟字段会根据其他字段自动计算' : '选择字段类型并配置'}
+            {mode === 'edit' 
+              ? '修改字段的属性和配置' 
+              : isVirtualField ? '虚拟字段会根据其他字段自动计算' : '选择字段类型并配置'
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -184,6 +304,15 @@ export default function CreateFieldDialog({
               <TabsTrigger value="basic">基础字段</TabsTrigger>
               <TabsTrigger value="virtual">虚拟字段</TabsTrigger>
             </TabsList>
+            
+            {/* 编辑模式下显示当前字段类型 */}
+            {mode === 'edit' && (
+              <div className="mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
+                💡 当前字段类型: {baseFieldTypes.find(t => t.value === fieldType)?.label || 
+                             virtualFieldTypes.find(t => t.value === fieldType)?.label || 
+                             fieldType} - 您可以更改字段类型
+              </div>
+            )}
 
             {/* 基础字段类型 */}
             <TabsContent value="basic" className="space-y-4">
@@ -206,6 +335,43 @@ export default function CreateFieldDialog({
                     </button>
                   )
                 })}
+              </div>
+
+              {/* 基础字段配置 */}
+              <div className="mt-6">
+                {/* 文本类型字段配置 */}
+                {['singleLineText', 'longText', 'checkbox', 'rating'].includes(fieldType) && (
+                  <BaseFieldConfig
+                    value={baseConfig}
+                    onChange={setBaseConfig}
+                    fieldType={fieldType as 'singleLineText' | 'longText' | 'checkbox' | 'rating'}
+                  />
+                )}
+
+                {/* 选择类型字段配置 */}
+                {['singleSelect', 'multipleSelect'].includes(fieldType) && (
+                  <SelectFieldConfig
+                    value={selectConfig}
+                    onChange={setSelectConfig}
+                    fieldType={fieldType as 'singleSelect' | 'multipleSelect'}
+                  />
+                )}
+
+                {/* 数字字段配置 */}
+                {fieldType === 'number' && (
+                  <NumberFieldConfig
+                    value={numberConfig}
+                    onChange={setNumberConfig}
+                  />
+                )}
+
+                {/* 日期字段配置 */}
+                {fieldType === 'date' && (
+                  <DateFieldConfig
+                    value={dateConfig}
+                    onChange={setDateConfig}
+                  />
+                )}
               </div>
             </TabsContent>
 
@@ -272,7 +438,10 @@ export default function CreateFieldDialog({
             取消
           </Button>
           <Button onClick={handleCreate} disabled={isCreating}>
-            {isCreating ? '创建中...' : '创建字段'}
+            {isCreating 
+              ? (mode === 'edit' ? '保存中...' : '创建中...') 
+              : (mode === 'edit' ? '保存' : '创建字段')
+            }
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -280,3 +449,4 @@ export default function CreateFieldDialog({
   )
 }
 
+export default CreateFieldDialog

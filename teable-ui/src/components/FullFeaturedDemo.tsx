@@ -1,4 +1,6 @@
 import { Undo2, Redo2, Plus, SlidersHorizontal, Filter, ArrowUpDown, PanelsTopLeft, Menu, ArrowUpRight } from 'lucide-react'
+import { CreateFieldDialog } from './CreateFieldDialog'
+import FormulaEditorTest from './FormulaEditorTest'
 /**
  * Full Featured Grid Demo - 完整功能演示
  * 
@@ -134,6 +136,8 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
   const [showFormModal, setShowFormModal] = useState(false)
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
   const [formValues, setFormValues] = useState<Record<string, any>>({})
+  const [showCreateFieldDialog, setShowCreateFieldDialog] = useState(false)
+  const [showFormulaEditorTest, setShowFormulaEditorTest] = useState(false)
   // 字段 id->name 映射（旧项目后端按字段名作为键）
   const [fieldIdToName, setFieldIdToName] = useState<Record<string, string>>({})
   const nameToFieldId = useMemo(() => Object.fromEntries(Object.entries(fieldIdToName).map(([id, name]) => [name, id])), [fieldIdToName])
@@ -597,75 +601,13 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     setColumns(prev => prev.map((c, i) => i === colIndex ? { ...c, width: newSize } : c))
   }, [])
 
-  // 列管理功能回调
-  const handleAddColumn = useCallback(async (fieldType: any, insertIndex?: number) => {
-    const localColumn: IGridColumn = {
-      id: `col-${Date.now()}`,
-      name: fieldType.name,
-      width: 160,
-      description: fieldType.description,
-      icon: fieldType.icon,
-    }
-
-    // 先本地插入，提升响应速度
-    if (insertIndex !== undefined) {
-      setColumns((cols) => {
-        const newCols = [...cols]
-        newCols.splice(insertIndex, 0, localColumn)
-        return newCols
-      })
-    } else {
-      setColumns((cols) => [...cols, localColumn])
-    }
-
-    // 同步到后端新建字段
-    try {
-      await ensureLogin()
-      
-      // 字段类型映射：前端类型 -> 后端类型
-      const typeMapping: Record<string, string> = {
-        'singleLineText': 'text',
-        'number': 'number',
-        'singleSelect': 'select',
-        'multiSelect': 'multi_select',
-        'date': 'date',
-        'checkbox': 'checkbox',
-        'url': 'url',
-        'email': 'email',
-        'phone': 'phone',
-        'rating': 'rating',
-        'progress': 'progress',
-        'currency': 'currency',
-        'percent': 'percent',
-        'autoNumber': 'auto_number',
-        'createdTime': 'created_time',
-        'lastModifiedTime': 'last_modified_time',
-        'createdBy': 'created_by',
-        'lastModifiedBy': 'last_modified_by',
-        'formula': 'formula',
-        'rollup': 'rollup',
-        'lookup': 'lookup',
-        'attachment': 'attachment',
-        'link': 'link',
-      }
-      
-      const backendType = typeMapping[fieldType.type] || 'text'
-      
-      const created = await teable.createField({
-        table_id: getEffectiveTableId(props.tableId || 'demo'),
-        name: fieldType.name,
-        type: backendType,
-        required: false,
-        is_unique: false,
-        is_primary: false,
-        field_order: 0
-      })
-      const field = created.data
-      setColumns((cols) => cols.map((c) => (c === localColumn ? { ...c, id: field.id, name: field.name } : c)))
-    } catch (e) {
-      console.error('创建字段失败', e)
-    }
-  }, [props.tableId])
+  // 列管理功能回调 - 显示创建字段对话框
+  const handleAddColumn = useCallback(() => {
+    // 清空编辑状态，确保是新建模式
+    setFormValues({})
+    // 直接显示创建字段对话框
+    setShowCreateFieldDialog(true)
+  }, [])
 
   const handleEditColumn = useCallback(async (columnIndex: number, updatedColumn: IGridColumn) => {
     // 1) 本地更新，提升响应
@@ -687,6 +629,50 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
       console.error('更新字段失败', e)
     }
   }, [columns])
+
+  // 新增：从列菜单启动编辑 -> 打开统一弹窗
+  const handleStartEditColumn = useCallback(async (columnIndex: number, column: IGridColumn) => {
+    try {
+      await ensureLogin()
+      
+      // 获取完整的字段信息
+      const fieldDetails = await teable.getField(column.id)
+      const fieldData = fieldDetails.data
+      
+      // 映射后端字段类型到前端类型
+      const mapBackendTypeToFrontend = (backendType: string): string => {
+        const typeMap: Record<string, string> = {
+          'text': 'singleLineText',
+          'longtext': 'longText',
+          'number': 'number',
+          'select': 'singleSelect',
+          'multi_select': 'multipleSelect',
+          'date': 'date',
+          'checkbox': 'checkbox',
+          'rating': 'rating',
+          'link': 'link',
+          'formula': 'formula',
+          'lookup': 'lookup',
+          'rollup': 'rollup',
+          'virtual_ai': 'ai'
+        }
+        return typeMap[backendType] || 'singleLineText'
+      }
+      
+      // 记录当前要编辑的列信息
+      setShowCreateFieldDialog(true)
+      setFormValues({ 
+        __editingFieldId: column.id, 
+        name: fieldData.name || column.name, 
+        type: mapBackendTypeToFrontend(fieldData.type) || 'singleLineText', 
+        description: fieldData.description || '',
+        options: fieldData.options || null
+      })
+    } catch (e) {
+      console.error('获取字段详情失败', e)
+      alert('获取字段详情失败')
+    }
+  }, [])
 
   const handleDuplicateColumn = useCallback((columnIndex: number) => {
     const columnToDuplicate = columns[columnIndex]
@@ -915,7 +901,7 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     setShowFormModal(true)
   }, [columns])
 
-  // 打开“编辑记录”表单（按行索引）
+  // 打开"编辑记录"表单（按行索引）
   const openEditForm = useCallback((rowIndex: number) => {
     const row = visibleData[rowIndex] as any
     if (!row) return
@@ -925,6 +911,134 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     setFormValues(init)
     setShowFormModal(true)
   }, [visibleData, columns])
+
+  // 字段创建成功后的回调
+  const handleFieldCreated = useCallback(async (fieldData: any) => {
+    try {
+      await ensureLogin()
+      
+      // 如果有 tableId，则调用后端 API 创建字段
+      if (props.tableId) {
+        const tableId = String(props.tableId)
+        
+        // 字段类型映射：前端类型 -> 后端类型
+        const mapFieldTypeToBackend = (frontendType: string): string => {
+          const typeMap: Record<string, string> = {
+            'singleLineText': 'text',
+            'longText': 'longtext', 
+            'number': 'number',
+            'singleSelect': 'select',
+            'multipleSelect': 'multi_select',
+            'date': 'date',
+            'checkbox': 'checkbox',
+            'rating': 'rating',
+            'link': 'link',
+            'formula': 'formula',
+            'lookup': 'lookup',
+            'rollup': 'rollup',
+            'ai': 'virtual_ai'
+          }
+          return typeMap[frontendType] || 'text'
+        }
+
+        // 构建字段创建数据
+        const createFieldData: any = {
+          name: fieldData.name,
+          type: mapFieldTypeToBackend(fieldData.type),
+        }
+        
+        // 添加描述
+        if (fieldData.description) {
+          createFieldData.description = fieldData.description
+        }
+        
+        // 添加选项配置
+        if (fieldData.options) {
+          // 后端期望options是JSON字符串，所以直接使用
+          createFieldData.options = fieldData.options
+        }
+        
+        // 添加特殊字段配置
+        if (fieldData.ai_config) {
+          // 如果ai_config是字符串，尝试解析为对象
+          if (typeof fieldData.ai_config === 'string') {
+            try {
+              createFieldData.ai_config = JSON.parse(fieldData.ai_config)
+            } catch (e) {
+              console.warn('无法解析ai_config字符串:', fieldData.ai_config)
+              createFieldData.ai_config = fieldData.ai_config
+            }
+          } else {
+            createFieldData.ai_config = fieldData.ai_config
+          }
+        }
+        if (fieldData.lookup_options) {
+          // 如果lookup_options是字符串，尝试解析为对象
+          if (typeof fieldData.lookup_options === 'string') {
+            try {
+              createFieldData.lookup_options = JSON.parse(fieldData.lookup_options)
+            } catch (e) {
+              console.warn('无法解析lookup_options字符串:', fieldData.lookup_options)
+              createFieldData.lookup_options = fieldData.lookup_options
+            }
+          } else {
+            createFieldData.lookup_options = fieldData.lookup_options
+          }
+        }
+        if (fieldData.is_computed !== undefined) {
+          createFieldData.is_computed = fieldData.is_computed
+        }
+        if (fieldData.is_lookup !== undefined) {
+          createFieldData.is_lookup = fieldData.is_lookup
+        }
+        
+        // 调用后端 API 创建字段
+        const requestData = {
+          table_id: tableId,
+          ...createFieldData
+        }
+        console.log('创建字段请求数据:', requestData)
+        await teable.createField(requestData)
+        
+        // 重新加载字段列表
+        const fieldsResp = await teable.listFields({ table_id: tableId, limit: 200 })
+        const loadedColumns: IGridColumn[] = (fieldsResp?.data || []).map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          width: 160,
+          hasMenu: true,
+        }))
+        if (loadedColumns.length > 0) {
+          setColumns([{ id: 'actions', name: '', width: 36, hasMenu: false }, ...loadedColumns])
+        }
+        
+        // 更新字段ID到名称的映射
+        const id2name: Record<string, string> = {}
+        ;(fieldsResp?.data || []).forEach((f: any) => (id2name[f.id] = f.name))
+        setFieldIdToName(id2name)
+
+        // 更新字段元数据
+        setFieldMetaById(buildFieldMetaById(fieldsResp?.data || []))
+      } else {
+        // 如果没有 tableId，则本地添加字段（演示模式）
+        const newColumn: IGridColumn = {
+          id: `field-${Date.now()}`,
+          name: fieldData.name,
+          width: 160,
+          hasMenu: true,
+        }
+        setColumns(prev => [...prev, newColumn])
+      }
+
+      // 关闭对话框
+      setShowCreateFieldDialog(false)
+      
+      console.log('字段创建成功:', fieldData)
+    } catch (e) {
+      console.error('创建字段失败', e)
+      alert('创建字段失败: ' + (e instanceof Error ? e.message : '未知错误'))
+    }
+  }, [props.tableId])
 
   return (
     <div className="h-screen w-screen flex flex-col bg-white">
@@ -939,7 +1053,13 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" onClick={openAddForm} title="新建记录">
                 <Plus className="w-4 h-4" />
               </button>
-              <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="字段配置"><SlidersHorizontal className="w-4 h-4 inline-block mr-1" />字段配置</button>
+              <button 
+                className="px-2 py-1 rounded border border-gray-200 bg-white" 
+                title="字段配置"
+                onClick={() => setShowFormulaEditorTest(true)}
+              >
+                <SlidersHorizontal className="w-4 h-4 inline-block mr-1" />字段配置
+              </button>
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="筛选" onClick={() => { setShowFilterPanel(v => !v); setShowSortPanel(false); setShowGroupPanel(false); }}><Filter className="w-4 h-4 inline-block mr-1" />筛选</button>
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="排序" onClick={() => { setShowSortPanel(v => !v); setShowFilterPanel(false); setShowGroupPanel(false); }}><ArrowUpDown className="w-4 h-4 inline-block mr-1" />排序</button>
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="分组" onClick={() => { setShowGroupPanel(v => !v); setShowFilterPanel(false); setShowSortPanel(false); }}><PanelsTopLeft className="w-4 h-4 inline-block mr-1" />分组</button>
@@ -1062,6 +1182,7 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
             onEditColumn={handleEditColumn}
             onDuplicateColumn={handleDuplicateColumn}
             onDeleteColumn={handleDeleteColumn}
+          onStartEditColumn={handleStartEditColumn}
             onCollapsedGroupChanged={setCollapsedGroupIds}
             onSelectionChanged={setSelection}
             onCopy={handleCopy}
@@ -1132,6 +1253,91 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
                 }
               }}>{editingRecordId ? '保存' : '创建'}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 字段创建对话框 */}
+      <CreateFieldDialog
+        open={showCreateFieldDialog}
+        onOpenChange={setShowCreateFieldDialog}
+        onCreateField={handleFieldCreated}
+        availableFields={columns.filter(col => col.id !== 'actions').map(col => ({
+          id: col.id,
+          name: col.name,
+          type: fieldMetaById[col.id]?.type || 'text'
+        }))}
+        // 根据是否携带 __editingFieldId 判断编辑模式
+        mode={typeof (formValues as any)?.__editingFieldId === 'string' ? 'edit' : 'create'}
+        initialValue={typeof (formValues as any)?.__editingFieldId === 'string' ? {
+          id: String((formValues as any).__editingFieldId),
+          name: String((formValues as any).name || ''),
+          type: String((formValues as any).type || 'singleLineText'),
+          description: String((formValues as any).description || ''),
+          options: (formValues as any).options || null,
+        } : undefined}
+        onUpdateField={async (fieldId: string, updates: any) => {
+          try {
+            await ensureLogin()
+            // 类型映射（与创建处一致）
+            const mapFieldTypeToBackend = (frontendType: string): string => {
+              const typeMap: Record<string, string> = {
+                'singleLineText': 'text',
+                'longText': 'longtext',
+                'number': 'number',
+                'singleSelect': 'select',
+                'multipleSelect': 'multi_select',
+                'date': 'date',
+                'checkbox': 'checkbox',
+                'rating': 'rating',
+                'link': 'link',
+                'formula': 'formula',
+                'lookup': 'lookup',
+                'rollup': 'rollup',
+                'ai': 'virtual_ai',
+              }
+              return typeMap[updates.type] || updates.type
+            }
+            const payload: any = { ...updates }
+            if (payload.type) payload.type = mapFieldTypeToBackend(payload.type)
+            // 确保options对象被序列化为JSON字符串
+            if (payload.options && typeof payload.options === 'object') {
+              payload.options = JSON.stringify(payload.options)
+            }
+            await teable.updateField(fieldId, payload)
+            // 刷新字段列表
+            if (props.tableId) {
+              const fieldsResp = await teable.listFields({ table_id: String(props.tableId), limit: 200 })
+              const loadedColumns: IGridColumn[] = (fieldsResp?.data || []).map((f: any) => ({ id: f.id, name: f.name, width: 160, hasMenu: true }))
+              if (loadedColumns.length > 0) setColumns([{ id: 'actions', name: '', width: 36, hasMenu: false }, ...loadedColumns])
+              const id2name: Record<string, string> = {}
+              ;(fieldsResp?.data || []).forEach((f: any) => (id2name[f.id] = f.name))
+              setFieldIdToName(id2name)
+              setFieldMetaById(buildFieldMetaById(fieldsResp?.data || []))
+            }
+            setFormValues({})
+            setShowCreateFieldDialog(false)
+          } catch (e) {
+            console.error('更新字段失败', e)
+            alert('更新字段失败')
+          }
+        }}
+      />
+
+      {/* 公式编辑器测试组件 */}
+      {showFormulaEditorTest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl max-h-[90vh] overflow-auto">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-semibold">字段配置</h2>
+              <button 
+                onClick={() => setShowFormulaEditorTest(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <FormulaEditorTest />
           </div>
         </div>
       )}

@@ -144,9 +144,15 @@ class SimpleTeableClient {
 
   async updateField(field_id: string, updates: Partial<{ name: string; type: string; description: string; options: any }>): Promise<{ data: Field }> {
     try {
+      // 确保options对象被序列化为JSON字符串
+      const payload = { ...updates };
+      if (payload.options && typeof payload.options === 'object') {
+        payload.options = JSON.stringify(payload.options);
+      }
+      
       const response = await axios.put(
         `${this.baseURL}/api/fields/${field_id}`,
-        updates,
+        payload,
         { headers: this.getHeaders() }
       );
       return { data: response.data.data };
@@ -313,6 +319,28 @@ class SimpleTeableClient {
       };
     } catch (error: any) {
       throw new Error(`获取基础表列表失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  async getBase(base_id: string): Promise<{ data: Base }> {
+    try {
+      const response = await axios.get(`${this.baseURL}/api/bases/${base_id}`, {
+        headers: this.getHeaders(),
+      });
+      return { data: response.data.data };
+    } catch (error: any) {
+      throw new Error(`获取数据库失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  async getField(field_id: string): Promise<{ data: Field }> {
+    try {
+      const response = await axios.get(`${this.baseURL}/api/fields/${field_id}`, {
+        headers: this.getHeaders(),
+      });
+      return { data: response.data.data };
+    } catch (error: any) {
+      throw new Error(`获取字段失败: ${error.response?.data?.message || error.message}`);
     }
   }
 

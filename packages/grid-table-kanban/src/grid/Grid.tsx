@@ -104,6 +104,8 @@ export interface IGridExternalProps {
   onEditColumn?: (columnIndex: number, updatedColumn: IGridColumn) => void;
   onDuplicateColumn?: (columnIndex: number) => void;
   onDeleteColumn?: (columnIndex: number) => void;
+  // 新增：当用户选择“编辑字段”时，允许上层自定义编辑弹窗
+  onStartEditColumn?: (columnIndex: number, column: IGridColumn) => void;
   onRowExpand?: (rowIndex: number) => void;
   onRowAppend?: (targetIndex?: number) => void;
   onRowOrdered?: (dragRowIndexCollection: number[], dropRowIndex: number) => void;
@@ -234,6 +236,7 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
     onEditColumn,
     onDuplicateColumn,
     onDeleteColumn,
+    onStartEditColumn,
   } = props;
 
   useImperativeHandle(forwardRef, () => ({
@@ -558,9 +561,15 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
     scrollerRef.current?.scrollBy(deltaX, deltaY);
   }, []);
 
-  // 点击右侧“+”添加列时，直接弹出字段属性编辑弹窗（居中）
+  // 点击右侧"+"添加列时，优先使用onAddColumn回调，否则显示默认字段属性编辑弹窗
   const handleAppendColumnClick = useCallback(() => {
-    // 以“新增字段”的方式打开属性编辑器，传入一个默认列定义
+    // 如果提供了onAddColumn回调，优先使用它
+    if (onAddColumn) {
+      onAddColumn();
+      return;
+    }
+
+    // 否则使用默认的字段属性编辑器
     const defaultColumn: IGridColumn = {
       id: `col-${Date.now()}`,
       name: '新字段',
@@ -592,7 +601,7 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
       columns.length,
       { x: Math.max(x, pageLeft), y, width: panelWidth }
     );
-  }, [columns.length, coordInstance, scrollState.scrollLeft, columnHeaderHeight]);
+  }, [onAddColumn, columns.length, coordInstance, scrollState.scrollLeft, columnHeaderHeight]);
 
   // 处理列头右键菜单（位置：顶部与第一行对齐，左边与列左边对齐）
   const handleColumnHeaderMenuClick = useCallback((colIndex: number, bounds: IRectangle) => {
@@ -827,6 +836,7 @@ const GridBase: ForwardRefRenderFunction<IGridRef, IGridProps> = (props, forward
         onEditColumn={onEditColumn}
         onDuplicateColumn={onDuplicateColumn}
         onDeleteColumn={onDeleteColumn}
+        onStartEditColumn={onStartEditColumn}
       />
       <RowContextMenu
         ref={rowContextMenuRef}
