@@ -1,3 +1,240 @@
-node_modules
-node_modules
-node_modules
+# ====================================
+# Go 相关
+# ====================================
+
+# 编译后的二进制文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+build/
+main
+server
+teable-server
+teable-mcp
+teable-mcp-server
+mcp-unified
+
+# Go 测试相关
+*.test
+*.out
+coverage.out
+coverage.html
+*.prof
+
+# Go 依赖管理
+vendor/
+go.work
+go.work.sum
+
+# ====================================
+# Node.js / JavaScript / TypeScript
+# ====================================
+
+# 依赖目录
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 构建输出
+dist/
+build/
+.next/
+out/
+.nuxt/
+.cache/
+
+# 依赖锁文件（根据团队约定选择保留或忽略）
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ====================================
+# 编辑器和 IDE
+# ====================================
+
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Cursor
+.cursor/*
+!.cursor/rules/
+
+# JetBrains IDEs (GoLand, WebStorm, IntelliJ IDEA)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ====================================
+# 操作系统
+# ====================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+.nfs*
+
+# ====================================
+# 日志文件
+# ====================================
+
+*.log
+logs/
+*.log.*
+server.log
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# ====================================
+# 数据库文件
+# ====================================
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+
+# PostgreSQL
+*.pgdata
+*.postgres
+
+# ====================================
+# 临时文件和缓存
+# ====================================
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+*.cache
+
+# 环境变量和配置文件
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ====================================
+# 构建和部署相关
+# ====================================
+
+# Docker
+docker-compose.override.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+
+# ====================================
+# 项目特定
+# ====================================
+
+# 备份文件
+*.bak
+*.bak2
+*.bak3
+*.backup
+*.old
+
+# 测试数据
+test-data/
+testdata/
+
+# 文档构建输出
+docs/_build/
+site/
+
+# ====================================
+# 其他
+# ====================================
+
+# 压缩文件
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# 证书和密钥（安全考虑）
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# 大文件和媒体文件（根据需要调整）
+# *.mp4
+# *.avi
+# *.mov
+# *.mkv
+# *.pdf
