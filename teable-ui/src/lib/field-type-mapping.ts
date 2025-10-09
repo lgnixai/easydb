@@ -94,7 +94,7 @@ export const buildFieldMetaById = (fields: BackendFieldItem[]) => {
     meta[f.id] = {
       type: mapBackendTypeToFieldType(f.type),
       options: f.options,
-      readonly: Boolean(f.is_system) || Boolean(f.read_only),
+      readonly: Boolean(f.is_system) || Boolean(f.read_only) || Boolean(f.is_computed),
     }
   }
   return meta

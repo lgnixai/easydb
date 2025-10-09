@@ -8,11 +8,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 
 export interface VirtualFieldCellProps {
   value: any
-  fieldType: 'formula' | 'lookup' | 'rollup' | 'ai'
+  fieldType: 'formula' | 'lookup' | 'rollup' | 'ai' | 'virtual_formula' | 'virtual_lookup' | 'virtual_rollup' | 'virtual_ai'
   isPending?: boolean
   hasError?: boolean
   errorMessage?: string
   className?: string
+  // 新增：虚拟字段元数据
+  metadata?: {
+    sourceFieldType?: string
+    isMultiple?: boolean
+    aggregationFunction?: string
+  }
 }
 
 export default function VirtualFieldCell({
@@ -22,7 +28,11 @@ export default function VirtualFieldCell({
   hasError,
   errorMessage,
   className = '',
+  metadata,
 }: VirtualFieldCellProps) {
+  // 标准化字段类型（处理 virtual_ 前缀）
+  const normalizedFieldType = fieldType.replace('virtual_', '') as 'formula' | 'lookup' | 'rollup' | 'ai'
+  
   // 字段类型图标和颜色
   const fieldIcons = {
     formula: { icon: Calculator, color: 'text-green-500' },
@@ -31,14 +41,40 @@ export default function VirtualFieldCell({
     ai: { icon: Sparkles, color: 'text-purple-500' },
   }
 
-  const { icon: FieldIcon, color } = fieldIcons[fieldType] || fieldIcons.formula
+  const { icon: FieldIcon, color } = fieldIcons[normalizedFieldType] || fieldIcons.formula
 
-  // 格式化显示值
+  // 格式化显示值（增强版，支持虚拟字段的特殊格式）
   const formatValue = (val: any): string => {
     if (val === null || val === undefined) return ''
+    
+    // 如果是数组，根据元数据决定如何显示
+    if (Array.isArray(val)) {
+      if (metadata?.isMultiple) {
+        // 多值字段，显示为逗号分隔
+        return val.map(v => formatSingleValue(v)).join(', ')
+      }
+      // 单值数组，取第一个元素
+      return val.length > 0 ? formatSingleValue(val[0]) : ''
+    }
+    
+    return formatSingleValue(val)
+  }
+
+  // 格式化单个值
+  const formatSingleValue = (val: any): string => {
+    if (val === null || val === undefined) return ''
     if (typeof val === 'object') {
-      if (Array.isArray(val)) return val.join(', ')
+      // 链接字段值格式：{ id, title }
+      if ('title' in val) return val.title || val.id || ''
       return JSON.stringify(val)
+    }
+    if (typeof val === 'number') {
+      // 根据聚合函数格式化数字
+      if (metadata?.aggregationFunction === 'count' || metadata?.aggregationFunction === 'countall') {
+        return Math.floor(val).toString()
+      }
+      // 默认保留2位小数
+      return Number.isInteger(val) ? val.toString() : val.toFixed(2)
     }
     return String(val)
   }
@@ -103,12 +139,15 @@ export default function VirtualFieldCell({
  */
 
 export interface VirtualFieldBadgeProps {
-  fieldType: 'formula' | 'lookup' | 'rollup' | 'ai'
+  fieldType: 'formula' | 'lookup' | 'rollup' | 'ai' | 'virtual_formula' | 'virtual_lookup' | 'virtual_rollup' | 'virtual_ai'
   isPending?: boolean
   hasError?: boolean
 }
 
 export function VirtualFieldBadge({ fieldType, isPending, hasError }: VirtualFieldBadgeProps) {
+  // 标准化字段类型（处理 virtual_ 前缀）
+  const normalizedFieldType = fieldType.replace('virtual_', '') as 'formula' | 'lookup' | 'rollup' | 'ai'
+  
   const fieldIcons = {
     formula: { icon: Calculator, color: 'bg-green-100 text-green-700', label: 'Formula' },
     lookup: { icon: Eye, color: 'bg-blue-100 text-blue-700', label: 'Lookup' },
@@ -116,7 +155,7 @@ export function VirtualFieldBadge({ fieldType, isPending, hasError }: VirtualFie
     ai: { icon: Sparkles, color: 'bg-purple-100 text-purple-700', label: 'AI' },
   }
 
-  const { icon: FieldIcon, color, label } = fieldIcons[fieldType] || fieldIcons.formula
+  const { icon: FieldIcon, color, label } = fieldIcons[normalizedFieldType] || fieldIcons.formula
 
   return (
     <div

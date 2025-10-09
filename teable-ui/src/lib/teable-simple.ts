@@ -210,7 +210,14 @@ class SimpleTeableClient {
       );
       return { data: response.data.data };
     } catch (error: any) {
-      throw new Error(`创建记录失败: ${error.response?.data?.message || error.message}`);
+      // 提取详细的错误信息
+      let errorMessage = error.message;
+      if (error.response?.data?.error?.details) {
+        errorMessage = error.response.data.error.details;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      throw new Error(`创建记录失败: ${errorMessage}`);
     }
   }
 

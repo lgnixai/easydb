@@ -20,3 +20,4 @@ psql -d teable -c "SELECT id, name, type, options FROM field WHERE table_id = 't
 echo ""
 echo "=== Test Complete ==="
 
+

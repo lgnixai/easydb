@@ -524,6 +524,8 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
       }
     } catch (e) {
       console.error('保存编辑到后端失败', e)
+      const errorMessage = e instanceof Error ? e.message : '未知错误'
+      alert(`保存编辑到后端失败: ${errorMessage}`)
     }
   }, [columns, saveHistory, visibleData, props.tableId, fieldIdToName])
 
@@ -557,17 +559,40 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
     try {
       await ensureLogin()
       
-      // 构建字段数据：使用实际的字段名（从 fieldIdToName 映射）
+      // 构建字段数据：只发送用户可编辑的字段（排除计算字段）
       const fields: Record<string, any> = {}
+      console.log('开始构建字段数据, newRow:', newRow)
+      console.log('columns:', columns.map(c => c.id))
+      console.log('fieldMetaById:', fieldMetaById)
+      
       columns.forEach(col => {
         const colId = col.id as string
-        if (colId === 'actions') return // 跳过操作列
+        console.log(`处理列: ${colId}`)
+        
+        if (colId === 'actions') {
+          console.log('跳过操作列:', colId)
+          return // 跳过操作列
+        }
+        
+        const fieldMeta = fieldMetaById[colId]
+        if (fieldMeta?.readonly) {
+          console.log('跳过只读字段:', colId)
+          return // 跳过只读字段（计算字段）
+        }
+        
         const fieldName = fieldIdToName[colId] || colId
         const value = (newRow as any)[colId]
-        if (value !== undefined) {
+        console.log(`字段 ${colId} -> ${fieldName}, 值:`, value)
+        
+        if (value !== undefined && value !== '') {
           fields[fieldName] = value
+          console.log(`添加字段: ${fieldName} = ${value}`)
+        } else {
+          console.log(`跳过空字段: ${fieldName}`)
         }
       })
+      
+      console.log('最终发送的字段数据:', fields)
       
       const created = await teable.createRecord({
         table_id: getEffectiveTableId(props.tableId || 'demo'),
@@ -582,6 +607,10 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
       })
     } catch (e) {
       console.error('创建记录失败', e)
+      const errorMessage = e instanceof Error ? e.message : '未知错误'
+      console.log('准备显示错误提示:', errorMessage)
+      alert(`创建记录失败: ${errorMessage}`)
+      console.log('错误提示已显示')
     }
   }, [data, saveHistory, props.tableId, columns, fieldIdToName])
 
@@ -783,22 +812,47 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
         return Array.from({ length: end - start + 1 }, (_, i) => start + i)
       }))
 
-      // 本地删除
+      // 先收集要删除的记录信息
+      const recordsToDelete: { recordId: string; index: number; record: any }[] = []
+      for (const idx of rowsToDelete) {
+        const rec = data[idx]
+        const recordId = (rec as any)?.id
+        if (recordId) {
+          recordsToDelete.push({ 
+            recordId: String(recordId), 
+            index: idx, 
+            record: rec 
+          })
+        }
+      }
+
+      console.log('准备删除记录，数量:', recordsToDelete.length)
+      console.log('要删除的记录:', recordsToDelete)
+      console.log('当前数据长度:', data.length)
+      
+      // 本地先删除，提升用户体验
+      const originalData = [...data]
       setData(prev => prev.filter((_, idx) => !rowsToDelete.has(idx)))
 
-      // 后端删除
+      // 后端删除（参考 teable-develop 的乐观更新模式）
       try {
         await ensureLogin()
-        const tableId = getEffectiveTableId(props.tableId || 'demo')
-        for (const idx of rowsToDelete) {
-          const rec = data[idx]
-          const recordId = (rec as any)?.id
-          if (recordId) {
-            await teable.deleteRecord({ table_id: tableId, record_id: String(recordId) })
-          }
+        const tableId = props.tableId || 'demo'
+        
+        // 批量删除记录
+        for (const { recordId } of recordsToDelete) {
+          console.log('删除记录ID:', recordId)
+          await teable.deleteRecord({ table_id: tableId, record_id: recordId })
+          console.log('记录删除成功:', recordId)
         }
+        console.log('所有记录删除完成')
       } catch (e) {
-        console.error('删除记录失败', e)
+        // 删除失败，回滚本地状态（参考 teable-develop 的错误回滚机制）
+        console.error('删除记录失败，回滚本地状态', e)
+        setData(originalData)
+        
+        const errorMessage = e instanceof Error ? e.message : '未知错误'
+        alert(`删除记录失败: ${errorMessage}`)
       }
     } else if (selection.type === 'columns') {
       const colsToDelete = new Set(selection.ranges.flatMap(range => {
@@ -808,6 +862,84 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
       setColumns(prev => prev.filter((_, i) => !colsToDelete.has(i)))
     }
   }, [saveHistory, data, props.tableId])
+
+  // 测试删除功能
+  const testDeleteFunction = useCallback(async () => {
+    console.log('测试删除功能开始')
+    console.log('当前数据:', data)
+    console.log('当前选择:', selection)
+    console.log('选择类型:', selection.type)
+    console.log('选择范围:', selection.ranges)
+    
+    if (selection.type === 'rows' && selection.ranges && selection.ranges.length > 0) {
+      console.log('执行删除操作')
+      await handleDelete(selection)
+    } else {
+      console.log('没有选中行，无法删除')
+      console.log('选择类型检查:', selection.type === 'rows')
+      console.log('范围检查:', selection.ranges && selection.ranges.length > 0)
+    }
+  }, [data, selection, handleDelete])
+
+  // 直接删除第一行（用于测试）
+  const deleteFirstRow = useCallback(async () => {
+    console.log('直接删除第一行测试')
+    if (data.length > 0) {
+      const firstRow = data[0]
+      console.log('第一行完整数据:', firstRow)
+      console.log('第一行所有字段:', Object.keys(firstRow))
+      
+      // 尝试不同的ID字段名
+      const recordId = (firstRow as any)?.id || 
+                      (firstRow as any)?._id || 
+                      (firstRow as any)?.recordId ||
+                      (firstRow as any)?.record_id
+      
+      console.log('找到的记录ID:', recordId)
+      
+      if (recordId) {
+        try {
+          await ensureLogin()
+          const tableId = props.tableId || 'demo'
+          console.log('准备删除记录:', { table_id: tableId, record_id: recordId })
+          
+          // 先调用后端API删除
+          await teable.deleteRecord({ table_id: tableId, record_id: recordId })
+          console.log('后端删除成功，更新本地数据')
+          
+          // 后端删除成功后，更新本地数据
+          setData(prev => prev.filter((_, idx) => idx !== 0))
+          alert('记录删除成功！')
+        } catch (e) {
+          console.error('删除失败:', e)
+          const errorMessage = e instanceof Error ? e.message : '未知错误'
+          alert(`删除记录失败: ${errorMessage}`)
+        }
+      } else {
+        console.log('第一行没有找到有效的ID字段，无法删除')
+        console.log('尝试的ID字段: id, _id, recordId, record_id')
+        alert('无法找到记录ID，请检查数据结构')
+      }
+    } else {
+      console.log('没有数据可删除')
+      alert('没有数据可删除')
+    }
+  }, [data, props.tableId])
+
+  // 调试数据结构
+  const debugDataStructure = useCallback(() => {
+    console.log('=== 数据结构调试 ===')
+    console.log('数据总数:', data.length)
+    if (data.length > 0) {
+      console.log('第一行数据结构:', data[0])
+      console.log('第一行所有字段:', Object.keys(data[0]))
+      console.log('ID字段值:', (data[0] as any)?.id)
+      console.log('_id字段值:', (data[0] as any)?._id)
+      console.log('recordId字段值:', (data[0] as any)?.recordId)
+    }
+    console.log('当前表格ID:', props.tableId)
+    console.log('===================')
+  }, [data, props.tableId])
 
   // 复制
   const handleCopy = useCallback((selection: CombinedSelection, e: React.ClipboardEvent) => {
@@ -1064,6 +1196,27 @@ export default function FullFeaturedDemo(props: { tableId?: string }) {
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="排序" onClick={() => { setShowSortPanel(v => !v); setShowFilterPanel(false); setShowGroupPanel(false); }}><ArrowUpDown className="w-4 h-4 inline-block mr-1" />排序</button>
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="分组" onClick={() => { setShowGroupPanel(v => !v); setShowFilterPanel(false); setShowSortPanel(false); }}><PanelsTopLeft className="w-4 h-4 inline-block mr-1" />分组</button>
               <button className="px-2 py-1 rounded border border-gray-200 bg-white" title="更多"><Menu className="w-4 h-4" /></button>
+              <button 
+                className="px-2 py-1 rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100" 
+                title="测试删除"
+                onClick={testDeleteFunction}
+              >
+                测试删除
+              </button>
+              <button 
+                className="px-2 py-1 rounded border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100" 
+                title="删除第一行"
+                onClick={deleteFirstRow}
+              >
+                删除第一行
+              </button>
+              <button 
+                className="px-2 py-1 rounded border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100" 
+                title="调试数据结构"
+                onClick={debugDataStructure}
+              >
+                调试数据
+              </button>
             </div>
             {/* 右侧工具区 */}
             <div className="flex items-center gap-2 text-xs">
